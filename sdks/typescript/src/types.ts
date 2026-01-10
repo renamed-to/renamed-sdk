@@ -215,7 +215,7 @@ export interface User {
   /**
    * Available credits
    */
-  credits: number;
+  credits?: number;
 
   /**
    * Team information (if applicable)

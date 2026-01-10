@@ -141,7 +141,7 @@ type User struct {
 	Name string `json:"name,omitempty"`
 
 	// Credits is the available credits.
-	Credits int `json:"credits"`
+	Credits int `json:"credits,omitempty"`
 
 	// Team is the team information (if applicable).
 	Team *Team `json:"team,omitempty"`

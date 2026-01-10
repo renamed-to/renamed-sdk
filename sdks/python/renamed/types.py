@@ -153,7 +153,7 @@ class User(BaseModel):
     name: str | None = None
     """Display name."""
 
-    credits: int
+    credits: int | None = None
     """Available credits."""
 
     team: Team | None = None
