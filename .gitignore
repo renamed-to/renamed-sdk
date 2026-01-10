@@ -32,6 +32,10 @@ coverage/
 htmlcov/
 .coverage
 
+# Package lock files (keep npm but ignore others)
+pnpm-lock.yaml
+yarn.lock
+
 # Logs
 *.log
 npm-debug.log*
