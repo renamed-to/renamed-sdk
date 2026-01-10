@@ -1,10 +1,10 @@
 {
     "name": "renamed/sdk",
-    "description": "Official PHP SDK for the renamed.to API",
+    "description": "Official PHP SDK for the renamed.to API - AI-powered file renaming, PDF splitting, and data extraction",
     "version": "0.1.0",
     "type": "library",
     "license": "MIT",
-    "keywords": ["renamed", "ai", "document", "rename", "pdf", "extract"],
+    "keywords": ["renamed", "ai", "document", "rename", "pdf", "extract", "ocr", "file-processing"],
     "homepage": "https://renamed.to",
     "authors": [
         {
@@ -12,6 +12,11 @@
             "email": "support@renamed.to"
         }
     ],
+    "support": {
+        "issues": "https://github.com/renamed-to/renamed-sdk/issues",
+        "source": "https://github.com/renamed-to/renamed-sdk",
+        "docs": "https://renamed.to/docs"
+    },
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.0"

@@ -1,0 +1,12 @@
+[package]
+name = "renamed-examples"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "basic_usage"
+path = "basic_usage.rs"
+
+[dependencies]
+renamed = { path = "../../sdks/rust" }
+tokio = { version = "1", features = ["full", "macros"] }

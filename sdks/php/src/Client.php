@@ -116,7 +116,7 @@ final class Client
      * $result = $client->rename('/path/to/file.pdf', ['template' => '{date}_{vendor}']);
      * ```
      */
-    public function rename(string|mixed $file, ?array $options = null): RenameResult
+    public function rename(mixed $file, ?array $options = null): RenameResult
     {
         $additionalFields = [];
         if (isset($options['template'])) {
@@ -146,7 +146,7 @@ final class Client
      * }
      * ```
      */
-    public function pdfSplit(string|mixed $file, ?array $options = null): AsyncJob
+    public function pdfSplit(mixed $file, ?array $options = null): AsyncJob
     {
         $additionalFields = [];
 
@@ -189,7 +189,7 @@ final class Client
      * ]);
      * ```
      */
-    public function extract(string|mixed $file, ?array $options = null): ExtractResult
+    public function extract(mixed $file, ?array $options = null): ExtractResult
     {
         $additionalFields = [];
 
@@ -310,7 +310,7 @@ final class Client
      * @return array<string, mixed> Response data
      * @throws RenamedExceptionBase
      */
-    private function uploadFile(string $path, string|mixed $file, array $additionalFields = []): array
+    private function uploadFile(string $path, mixed $file, array $additionalFields = []): array
     {
         [$filename, $content, $mimeType] = $this->prepareFile($file);
 
@@ -339,7 +339,7 @@ final class Client
      * @param string|resource $file File path or resource
      * @return array{0: string, 1: string, 2: string} [filename, content, mimeType]
      */
-    private function prepareFile(string|mixed $file): array
+    private function prepareFile(mixed $file): array
     {
         if (is_string($file)) {
             // File path

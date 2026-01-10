@@ -5,3 +5,5 @@ require "renamed"
 
 require "minitest/autorun"
 require "webmock/minitest"
+require "tempfile"
+require "json"

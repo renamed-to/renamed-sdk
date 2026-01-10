@@ -38,6 +38,7 @@ Package.resolved
 # PHP
 vendor/
 composer.lock
+.phpunit.cache/
 
 # Ruby
 .bundle/
