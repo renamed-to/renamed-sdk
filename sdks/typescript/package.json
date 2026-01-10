@@ -1,0 +1,50 @@
+{
+  "name": "@renamed/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript/JavaScript SDK for renamed.to API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "renamed",
+    "pdf",
+    "rename",
+    "ocr",
+    "ai",
+    "document",
+    "sdk"
+  ],
+  "author": "renamed.to",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/renamed-to/renamed-sdk.git",
+    "directory": "sdks/typescript"
+  },
+  "homepage": "https://www.renamed.to/docs/api-docs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  }
+}

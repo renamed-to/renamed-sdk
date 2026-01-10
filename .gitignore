@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Build outputs
+dist/
+build/
+*.js.map
+*.d.ts.map
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.env.local
+*.env
+
+# Test coverage
+coverage/
+htmlcov/
+.coverage
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
