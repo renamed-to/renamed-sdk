@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet Package Properties -->
+    <PackageId>Renamed.Sdk</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Renamed.to</Authors>
+    <Company>Renamed.to</Company>
+    <Description>Official .NET SDK for the renamed.to API - AI-powered file renaming, PDF splitting, and data extraction.</Description>
+    <PackageTags>renamed;ai;file-renaming;pdf;ocr;document-processing</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://renamed.to</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/renamed-to/renamed-sdk</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Assembly Properties -->
+    <AssemblyName>Renamed.Sdk</AssemblyName>
+    <RootNamespace>Renamed.Sdk</RootNamespace>
+
+    <!-- Documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+</Project>
