@@ -1,7 +1,6 @@
 {
     "name": "renamed-to/renamed-php",
     "description": "Official PHP SDK for the renamed.to API - AI-powered file renaming, PDF splitting, and data extraction",
-    "version": "0.1.0-beta2",
     "type": "library",
     "license": "MIT",
     "keywords": ["renamed", "ai", "document", "rename", "pdf", "extract", "ocr", "file-processing"],
