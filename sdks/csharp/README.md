@@ -35,6 +35,10 @@ var result = await client.RenameAsync("path/to/invoice.pdf");
 Console.WriteLine($"Suggested filename: {result.SuggestedFilename}");
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/csharp](https://github.com/renamed-to/renamed-sdk/tree/main/examples/csharp) (`BasicUsage.cs`).
+
 ## Usage
 
 ### Initialize the Client

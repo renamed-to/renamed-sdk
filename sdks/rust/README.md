@@ -35,6 +35,10 @@ async fn main() -> Result<(), renamed::RenamedError> {
 }
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/rust](https://github.com/renamed-to/renamed-sdk/tree/main/examples/rust) (`basic_usage.rs`).
+
 ## Features
 
 ### Rename Files

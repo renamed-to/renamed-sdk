@@ -49,6 +49,10 @@ public class Example {
 }
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/java](https://github.com/renamed-to/renamed-sdk/tree/main/examples/java) (`BasicUsage.java`).
+
 ## Usage
 
 ### Creating a Client

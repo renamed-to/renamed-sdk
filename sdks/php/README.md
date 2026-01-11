@@ -30,6 +30,10 @@ $result = $client->rename('/path/to/invoice.pdf');
 echo $result->suggestedFilename; // "2025-01-15_AcmeCorp_INV-12345.pdf"
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/php](https://github.com/renamed-to/renamed-sdk/tree/main/examples/php) (`basic_usage.php`).
+
 ## Usage
 
 ### Get User Information

@@ -34,6 +34,10 @@ func main() {
 }
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/go](https://github.com/renamed-to/renamed-sdk/tree/main/examples/go) (`basic-rename/`, `pdf-split/`).
+
 ## Usage
 
 ### Rename Files

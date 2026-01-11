@@ -47,6 +47,10 @@ let result = try await client.rename(file: file)
 print("Suggested filename: \(result.suggestedFilename)")
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/swift](https://github.com/renamed-to/renamed-sdk/tree/main/examples/swift) (`BasicUsage.swift`).
+
 ## Usage
 
 ### Renaming Files

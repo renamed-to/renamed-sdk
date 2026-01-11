@@ -36,6 +36,10 @@ puts result.suggested_filename  # => "2025-01-15_AcmeCorp_INV-12345.pdf"
 puts result.folder_path         # => "Invoices/2025/January"
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/ruby](https://github.com/renamed-to/renamed-sdk/tree/main/examples/ruby) (`basic_usage.rb`).
+
 ## Features
 
 ### Rename Files

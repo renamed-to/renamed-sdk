@@ -27,6 +27,10 @@ console.log(result.suggestedFilename);
 // => "2025-01-15_AcmeCorp_INV-12345.pdf"
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/typescript](https://github.com/renamed-to/renamed-sdk/tree/main/examples/typescript) (`basic-rename.ts`, `pdf-split.ts`).
+
 ## Usage
 
 ### Rename Files
