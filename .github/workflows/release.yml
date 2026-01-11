@@ -24,9 +24,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
       - run: npm publish --provenance --access public
@@ -127,6 +128,8 @@ jobs:
 
       - name: Login to NuGet via Trusted Publishing
         uses: nuget/login@v1
+        with:
+          user: alexerm
 
       - name: Publish to NuGet
         run: dotnet nuget push ./nupkg/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
@@ -151,10 +154,11 @@ jobs:
       - name: Build gem
         run: gem build *.gemspec
 
+      - name: Configure RubyGems Credentials
+        uses: rubygems/configure-rubygems-credentials@main
+
       - name: Publish to RubyGems
-        uses: rubygems/release-gem@v1
-        with:
-          working-directory: sdks/ruby
+        run: gem push *.gem
 
   rust:
     name: Publish Rust
