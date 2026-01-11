@@ -31,7 +31,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Publish to npm
-        run: ../../scripts/npm-publish.sh
+        run: bash $GITHUB_WORKSPACE/scripts/npm-publish.sh
 
   python:
     name: Publish Python
