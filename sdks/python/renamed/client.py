@@ -6,7 +6,7 @@ import asyncio
 import mimetypes
 import time
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Union
+from typing import Any, BinaryIO, Callable, Dict, Optional, Tuple, Union
 
 import httpx
 
@@ -71,7 +71,7 @@ class AsyncJob:
 
     def wait(
         self,
-        on_progress: Callable[[JobStatusResponse], None] | None = None,
+        on_progress: Optional[Callable[[JobStatusResponse], None]] = None,
     ) -> PdfSplitResult:
         """
         Wait for job completion, polling at regular intervals.
@@ -111,7 +111,7 @@ class AsyncJob:
 
     async def wait_async(
         self,
-        on_progress: Callable[[JobStatusResponse], None] | None = None,
+        on_progress: Optional[Callable[[JobStatusResponse], None]] = None,
     ) -> PdfSplitResult:
         """
         Wait for job completion (async version).
@@ -185,7 +185,7 @@ class RenamedClient:
             timeout=timeout,
             headers={"Authorization": f"Bearer {api_key}"},
         )
-        self._async_client: httpx.AsyncClient | None = None
+        self._async_client: Optional[httpx.AsyncClient] = None
 
     def _get_async_client(self) -> httpx.AsyncClient:
         """Get or create async client."""
@@ -220,7 +220,7 @@ class RenamedClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         """Make a request with retries."""
         url = self._build_url(path)
-        last_error: Exception | None = None
+        last_error: Optional[Exception] = None
         attempts = 0
 
         while attempts <= self._max_retries:
@@ -249,7 +249,7 @@ class RenamedClient:
         """Make an async request with retries."""
         url = self._build_url(path)
         client = self._get_async_client()
-        last_error: Exception | None = None
+        last_error: Optional[Exception] = None
         attempts = 0
 
         while attempts <= self._max_retries:
@@ -276,8 +276,8 @@ class RenamedClient:
     def _prepare_file(
         self,
         file: FileInput,
-        filename: str | None = None,
-    ) -> tuple[str, bytes, str]:
+        filename: Optional[str] = None,
+    ) -> Tuple[str, bytes, str]:
         """Prepare file for upload. Returns (filename, content, mime_type)."""
         if isinstance(file, (str, Path)):
             path = Path(file)
@@ -291,7 +291,7 @@ class RenamedClient:
 
         # BinaryIO
         content = file.read()
-        file_name: str | bytes | None = getattr(file, "name", None)
+        file_name: Optional[Union[str, bytes]] = getattr(file, "name", None)
         if file_name is None:
             name = filename or "file"
         elif isinstance(file_name, bytes):
@@ -305,9 +305,9 @@ class RenamedClient:
         self,
         path: str,
         file: FileInput,
-        filename: str | None = None,
+        filename: Optional[str] = None,
         field_name: str = "file",
-        additional_fields: dict[str, str] | None = None,
+        additional_fields: Optional[Dict[str, str]] = None,
     ) -> Any:
         """Upload a file to the API."""
         name, content, mime_type = self._prepare_file(file, filename)
@@ -321,9 +321,9 @@ class RenamedClient:
         self,
         path: str,
         file: FileInput,
-        filename: str | None = None,
+        filename: Optional[str] = None,
         field_name: str = "file",
-        additional_fields: dict[str, str] | None = None,
+        additional_fields: Optional[Dict[str, str]] = None,
     ) -> Any:
         """Upload a file to the API (async)."""
         name, content, mime_type = self._prepare_file(file, filename)
@@ -337,8 +337,8 @@ class RenamedClient:
         self,
         file: FileInput,
         *,
-        options: RenameOptions | None = None,
-        template: str | None = None,
+        options: Optional[RenameOptions] = None,
+        template: Optional[str] = None,
     ) -> RenameResult:
         """
         Rename a file using AI.
@@ -374,8 +374,8 @@ class RenamedClient:
         self,
         file: FileInput,
         *,
-        options: RenameOptions | None = None,
-        template: str | None = None,
+        options: Optional[RenameOptions] = None,
+        template: Optional[str] = None,
     ) -> RenameResult:
         """Rename a file using AI (async version)."""
         additional_fields: dict[str, str] = {}
@@ -395,9 +395,9 @@ class RenamedClient:
         self,
         file: FileInput,
         *,
-        options: PdfSplitOptions | None = None,
-        mode: str | None = None,
-        pages_per_split: int | None = None,
+        options: Optional[PdfSplitOptions] = None,
+        mode: Optional[str] = None,
+        pages_per_split: Optional[int] = None,
     ) -> AsyncJob:
         """
         Split a PDF into multiple documents.
@@ -443,9 +443,9 @@ class RenamedClient:
         self,
         file: FileInput,
         *,
-        options: PdfSplitOptions | None = None,
-        mode: str | None = None,
-        pages_per_split: int | None = None,
+        options: Optional[PdfSplitOptions] = None,
+        mode: Optional[str] = None,
+        pages_per_split: Optional[int] = None,
     ) -> AsyncJob:
         """Split a PDF into multiple documents (async version)."""
         additional_fields: dict[str, str] = {}
@@ -470,9 +470,9 @@ class RenamedClient:
         self,
         file: FileInput,
         *,
-        options: ExtractOptions | None = None,
-        prompt: str | None = None,
-        schema: dict[str, Any] | None = None,
+        options: Optional[ExtractOptions] = None,
+        prompt: Optional[str] = None,
+        schema: Optional[Dict[str, Any]] = None,
     ) -> ExtractResult:
         """
         Extract structured data from a document.
@@ -515,9 +515,9 @@ class RenamedClient:
         self,
         file: FileInput,
         *,
-        options: ExtractOptions | None = None,
-        prompt: str | None = None,
-        schema: dict[str, Any] | None = None,
+        options: Optional[ExtractOptions] = None,
+        prompt: Optional[str] = None,
+        schema: Optional[Dict[str, Any]] = None,
     ) -> ExtractResult:
         """Extract structured data from a document (async version)."""
         additional_fields: dict[str, str] = {}

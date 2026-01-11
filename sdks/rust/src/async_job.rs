@@ -65,11 +65,7 @@ pub struct AsyncJob {
 
 impl AsyncJob {
     /// Creates a new async job.
-    pub(crate) fn new(
-        client: Arc<reqwest::Client>,
-        api_key: String,
-        status_url: String,
-    ) -> Self {
+    pub(crate) fn new(client: Arc<reqwest::Client>, api_key: String, status_url: String) -> Self {
         Self {
             client,
             api_key,

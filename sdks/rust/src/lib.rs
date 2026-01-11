@@ -118,8 +118,8 @@ pub use async_job::{AsyncJob, ProgressCallback};
 pub use client::{RenamedClient, RenamedClientBuilder};
 pub use error::{RenamedError, Result};
 pub use models::{
-    ExtractOptions, ExtractResult, JobStatus, JobStatusResponse, PdfSplitOptions,
-    PdfSplitResult, RenameOptions, RenameResult, SplitDocument, SplitMode, Team, User,
+    ExtractOptions, ExtractResult, JobStatus, JobStatusResponse, PdfSplitOptions, PdfSplitResult,
+    RenameOptions, RenameResult, SplitDocument, SplitMode, Team, User,
 };
 
 /// Prelude module for convenient imports.
@@ -132,7 +132,7 @@ pub mod prelude {
     pub use crate::client::RenamedClient;
     pub use crate::error::{RenamedError, Result};
     pub use crate::models::{
-        ExtractOptions, ExtractResult, JobStatus, PdfSplitOptions, PdfSplitResult,
-        RenameOptions, RenameResult, SplitDocument, SplitMode, User,
+        ExtractOptions, ExtractResult, JobStatus, PdfSplitOptions, PdfSplitResult, RenameOptions,
+        RenameResult, SplitDocument, SplitMode, User,
     };
 }

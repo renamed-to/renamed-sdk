@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,17 +18,17 @@ class RenameResult(BaseModel):
     suggested_filename: str = Field(alias="suggestedFilename")
     """AI-suggested new filename."""
 
-    folder_path: str | None = Field(default=None, alias="folderPath")
+    folder_path: Optional[str] = Field(default=None, alias="folderPath")
     """Suggested folder path for organization."""
 
-    confidence: float | None = None
+    confidence: Optional[float] = None
     """Confidence score (0-1) of the suggestion."""
 
 
 class RenameOptions(BaseModel):
     """Options for rename operation."""
 
-    template: str | None = None
+    template: Optional[str] = None
     """Custom template for filename generation."""
 
 
@@ -37,10 +37,10 @@ class PdfSplitOptions(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    mode: Literal["auto", "pages", "blank"] | None = None
+    mode: Optional[Literal["auto", "pages", "blank"]] = None
     """Split mode: 'auto' (AI-detected), 'pages' (every N pages), 'blank' (at blank pages)."""
 
-    pages_per_split: int | None = Field(default=None, alias="pagesPerSplit")
+    pages_per_split: Optional[int] = Field(default=None, alias="pagesPerSplit")
     """Number of pages per split (for 'pages' mode)."""
 
 
@@ -77,7 +77,7 @@ class PdfSplitResult(BaseModel):
     original_filename: str = Field(alias="originalFilename")
     """Original filename."""
 
-    documents: list[SplitDocument]
+    documents: List[SplitDocument]
     """Split documents."""
 
     total_pages: int = Field(alias="totalPages")
@@ -95,13 +95,13 @@ class JobStatusResponse(BaseModel):
     status: JobStatus
     """Current job status."""
 
-    progress: int | None = None
+    progress: Optional[int] = None
     """Progress percentage (0-100)."""
 
-    error: str | None = None
+    error: Optional[str] = None
     """Error message if job failed."""
 
-    result: PdfSplitResult | None = None
+    result: Optional[PdfSplitResult] = None
     """Result data when job is completed."""
 
 
@@ -110,17 +110,17 @@ class ExtractOptions(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    schema_: dict[str, Any] | None = Field(default=None, alias="schema")
+    schema_: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
     """Schema defining what to extract."""
 
-    prompt: str | None = None
+    prompt: Optional[str] = None
     """Prompt describing what to extract."""
 
 
 class ExtractResult(BaseModel):
     """Result of extract operation."""
 
-    data: dict[str, Any]
+    data: Dict[str, Any]
     """Extracted data matching the schema."""
 
     confidence: float
@@ -146,18 +146,18 @@ class User(BaseModel):
     email: str
     """Email address."""
 
-    name: str | None = None
+    name: Optional[str] = None
     """Display name."""
 
-    credits: int | None = None
+    credits: Optional[int] = None
     """Available credits."""
 
-    team: Team | None = None
+    team: Optional[Team] = None
     """Team information (if applicable)."""
 
 
 # MIME types for supported file formats
-MIME_TYPES: dict[str, str] = {
+MIME_TYPES: Dict[str, str] = {
     ".pdf": "application/pdf",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",

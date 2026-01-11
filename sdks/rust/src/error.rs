@@ -126,8 +126,8 @@ pub(crate) struct ApiErrorResponse {
 impl RenamedError {
     /// Creates an appropriate error variant from an HTTP status code and response body.
     pub(crate) fn from_http_status(status: u16, body: Option<&str>) -> Self {
-        let error_response: Option<ApiErrorResponse> = body
-            .and_then(|b| serde_json::from_str(b).ok());
+        let error_response: Option<ApiErrorResponse> =
+            body.and_then(|b| serde_json::from_str(b).ok());
 
         let message = error_response
             .as_ref()
@@ -232,7 +232,10 @@ mod tests {
 
     #[test]
     fn test_error_from_429() {
-        let err = RenamedError::from_http_status(429, Some(r#"{"error": "Slow down", "retryAfter": 30}"#));
+        let err = RenamedError::from_http_status(
+            429,
+            Some(r#"{"error": "Slow down", "retryAfter": 30}"#),
+        );
         if let RenamedError::RateLimit { retry_after, .. } = err {
             assert_eq!(retry_after, Some(30));
         } else {

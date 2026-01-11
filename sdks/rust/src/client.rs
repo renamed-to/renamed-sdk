@@ -12,8 +12,8 @@ use reqwest::multipart::{Form, Part};
 use crate::async_job::AsyncJob;
 use crate::error::{RenamedError, Result};
 use crate::models::{
-    ExtractOptions, ExtractResult, PdfSplitOptions, PdfSplitResponse, RenameOptions,
-    RenameResult, User,
+    ExtractOptions, ExtractResult, PdfSplitOptions, PdfSplitResponse, RenameOptions, RenameResult,
+    User,
 };
 
 /// Default base URL for the renamed.to API.
@@ -165,12 +165,10 @@ impl RenamedClient {
         let mut last_error = None;
 
         for attempt in 0..=self.max_retries {
-            let req = request
-                .try_clone()
-                .ok_or_else(|| RenamedError::Network {
-                    message: "Failed to clone request for retry".to_string(),
-                    source: None,
-                })?;
+            let req = request.try_clone().ok_or_else(|| RenamedError::Network {
+                message: "Failed to clone request for retry".to_string(),
+                source: None,
+            })?;
 
             match req.send().await {
                 Ok(response) => {
@@ -213,9 +211,9 @@ impl RenamedClient {
             .unwrap_or("file")
             .to_string();
 
-        let content = tokio::fs::read(path)
-            .await
-            .map_err(|e| RenamedError::from_io(e, format!("Failed to read file: {}", path.display())))?;
+        let content = tokio::fs::read(path).await.map_err(|e| {
+            RenamedError::from_io(e, format!("Failed to read file: {}", path.display()))
+        })?;
 
         let mime_type = mime_guess::from_path(path)
             .first_or_octet_stream()
@@ -274,7 +272,10 @@ impl RenamedClient {
         fields: Vec<(&str, String)>,
     ) -> Result<String> {
         let form = self.create_file_form(file_path, fields).await?;
-        let request = self.request(reqwest::Method::POST, path).await?.multipart(form);
+        let request = self
+            .request(reqwest::Method::POST, path)
+            .await?
+            .multipart(form);
         self.execute_request(request).await
     }
 
@@ -287,7 +288,10 @@ impl RenamedClient {
         fields: Vec<(&str, String)>,
     ) -> Result<String> {
         let form = self.create_bytes_form(content, filename, fields)?;
-        let request = self.request(reqwest::Method::POST, path).await?.multipart(form);
+        let request = self
+            .request(reqwest::Method::POST, path)
+            .await?
+            .multipart(form);
         self.execute_request(request).await
     }
 
@@ -381,7 +385,9 @@ impl RenamedClient {
             }
         }
 
-        let body = self.upload_bytes("/rename", content, filename, fields).await?;
+        let body = self
+            .upload_bytes("/rename", content, filename, fields)
+            .await?;
         serde_json::from_str(&body).map_err(RenamedError::from_serde)
     }
 
@@ -466,7 +472,9 @@ impl RenamedClient {
             }
         }
 
-        let body = self.upload_bytes("/pdf-split", content, filename, fields).await?;
+        let body = self
+            .upload_bytes("/pdf-split", content, filename, fields)
+            .await?;
         let response: PdfSplitResponse =
             serde_json::from_str(&body).map_err(RenamedError::from_serde)?;
 
@@ -548,7 +556,9 @@ impl RenamedClient {
             }
         }
 
-        let body = self.upload_bytes("/extract", content, filename, fields).await?;
+        let body = self
+            .upload_bytes("/extract", content, filename, fields)
+            .await?;
         serde_json::from_str(&body).map_err(RenamedError::from_serde)
     }
 
@@ -589,7 +599,11 @@ impl RenamedClient {
             return Err(RenamedError::from_http_status(status_code, Some(&body)));
         }
 
-        response.bytes().await.map(|b| b.to_vec()).map_err(RenamedError::from_reqwest)
+        response
+            .bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(RenamedError::from_reqwest)
     }
 }
 

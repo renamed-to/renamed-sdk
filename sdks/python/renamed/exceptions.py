@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 
 class RenamedError(Exception):
@@ -12,7 +12,7 @@ class RenamedError(Exception):
         self,
         message: str,
         code: str = "UNKNOWN_ERROR",
-        status_code: int | None = None,
+        status_code: Optional[int] = None,
         details: Any = None,
     ) -> None:
         super().__init__(message)
@@ -35,7 +35,7 @@ class RateLimitError(RenamedError):
     def __init__(
         self,
         message: str = "Rate limit exceeded",
-        retry_after: int | None = None,
+        retry_after: Optional[int] = None,
     ) -> None:
         super().__init__(message, "RATE_LIMIT_ERROR", 429)
         self.retry_after = retry_after
@@ -72,7 +72,7 @@ class InsufficientCreditsError(RenamedError):
 class JobError(RenamedError):
     """Job error - async job failed."""
 
-    def __init__(self, message: str, job_id: str | None = None) -> None:
+    def __init__(self, message: str, job_id: Optional[str] = None) -> None:
         super().__init__(message, "JOB_ERROR")
         self.job_id = job_id
 
