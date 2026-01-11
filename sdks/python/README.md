@@ -25,6 +25,10 @@ print(result.suggested_filename)
 # => "2025-01-15_AcmeCorp_INV-12345.pdf"
 ```
 
+## Examples
+
+See runnable examples in the SDK repo: [examples/python](https://github.com/renamed-to/renamed-sdk/tree/main/examples/python) (`basic_rename.py`, `pdf_split.py`).
+
 ## Usage
 
 ### Rename Files
@@ -102,6 +106,8 @@ print(f"Credits remaining: {user.credits}")
 ```
 
 ## Async Support
+
+Use the synchronous methods for simple scripts/CLIs. Use the async methods when you're already in an async app (FastAPI, etc.) or want concurrency.
 
 All methods have async versions with the `_async` suffix:
 
