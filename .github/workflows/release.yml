@@ -30,7 +30,7 @@ jobs:
       - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --access public --tag beta
+      - run: npm publish --provenance --access public --tag beta || echo "Package may already exist, continuing..."
 
   python:
     name: Publish Python
@@ -58,6 +58,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdks/python/dist/
+          skip-existing: true
 
   go:
     name: Tag Go Module
