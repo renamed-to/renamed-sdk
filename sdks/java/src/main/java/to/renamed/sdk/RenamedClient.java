@@ -61,6 +61,8 @@ public class RenamedClient {
     private final int maxRetries;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final boolean debug;
+    private final Logger logger;
 
     /**
      * Creates a new RenamedClient with the specified API key.
@@ -68,13 +70,14 @@ public class RenamedClient {
      * @param apiKey your renamed.to API key (starts with "rt_")
      */
     public RenamedClient(String apiKey) {
-        this(apiKey, DEFAULT_BASE_URL, DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES, null);
+        this(apiKey, DEFAULT_BASE_URL, DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES, null, false, null);
     }
 
     /**
      * Creates a new RenamedClient with full configuration.
      */
-    private RenamedClient(String apiKey, String baseUrl, Duration timeout, int maxRetries, HttpClient httpClient) {
+    private RenamedClient(String apiKey, String baseUrl, Duration timeout, int maxRetries,
+                          HttpClient httpClient, boolean debug, Logger logger) {
         if (apiKey == null || apiKey.isEmpty()) {
             throw new IllegalArgumentException("API key is required");
         }
@@ -86,6 +89,12 @@ public class RenamedClient {
                 .connectTimeout(timeout)
                 .build();
         this.objectMapper = new ObjectMapper();
+        this.debug = debug;
+        this.logger = debug ? (logger != null ? logger : new DebugLogger()) : null;
+
+        if (this.debug && this.logger != null) {
+            this.logger.log("Initialized with API key " + DebugLogger.maskApiKey(apiKey));
+        }
     }
 
     /**
@@ -375,11 +384,23 @@ public class RenamedClient {
                     .timeout(timeout)
                     .build();
 
+            long startTime = System.currentTimeMillis();
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            long elapsed = System.currentTimeMillis() - startTime;
+
+            // Extract path from URL for logging (avoid logging full URL which may contain tokens)
+            String path = URI.create(url).getPath();
+            if (logger != null) {
+                logger.log("GET " + path + " -> " + response.statusCode() + " (" + elapsed + "ms)");
+            }
 
             if (response.statusCode() >= 400) {
                 throw RenamedError.fromHttpStatus(response.statusCode(),
                         "HTTP " + response.statusCode(), null);
+            }
+
+            if (logger != null) {
+                logger.log("Download: " + DebugLogger.formatSize(response.body().length));
             }
 
             return response.body();
@@ -421,8 +442,14 @@ public class RenamedClient {
                     requestBuilder.method(method, HttpRequest.BodyPublishers.noBody());
                 }
 
+                long startTime = System.currentTimeMillis();
                 HttpResponse<String> response = httpClient.send(requestBuilder.build(),
                         HttpResponse.BodyHandlers.ofString());
+                long elapsed = System.currentTimeMillis() - startTime;
+
+                if (logger != null) {
+                    logger.log(method + " " + path + " -> " + response.statusCode() + " (" + elapsed + "ms)");
+                }
 
                 if (response.statusCode() >= 400) {
                     Map<String, Object> payload = parseErrorPayload(response.body());
@@ -434,8 +461,12 @@ public class RenamedClient {
             } catch (IOException e) {
                 lastException = e;
                 if (attempt < maxRetries) {
+                    long backoffMs = (1L << attempt) * 100;
+                    if (logger != null) {
+                        logger.log("Retry attempt " + (attempt + 1) + "/" + maxRetries + ", waiting " + backoffMs + "ms");
+                    }
                     try {
-                        Thread.sleep((1L << attempt) * 100);
+                        Thread.sleep(backoffMs);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         throw new NetworkError("Request interrupted", ie);
@@ -462,6 +493,9 @@ public class RenamedClient {
     }
 
     private String uploadFile(String path, byte[] content, String filename, Map<String, String> fields) {
+        if (logger != null) {
+            logger.log("Upload: " + filename + " (" + DebugLogger.formatSize(content.length) + ")");
+        }
         String boundary = "----RenamedBoundary" + UUID.randomUUID().toString().replace("-", "");
         byte[] body = buildMultipartBody(boundary, content, filename, fields);
         return request("POST", path, body, "multipart/form-data; boundary=" + boundary);
@@ -539,7 +573,7 @@ public class RenamedClient {
         try {
             JsonNode node = objectMapper.readTree(response);
             String statusUrl = node.get("statusUrl").asText();
-            return new AsyncJob(httpClient, objectMapper, apiKey, statusUrl);
+            return new AsyncJob(httpClient, objectMapper, apiKey, statusUrl, logger);
         } catch (IOException e) {
             throw new RenamedError("Failed to parse async job response: " + e.getMessage(), "PARSE_ERROR");
         }
@@ -554,6 +588,8 @@ public class RenamedClient {
         private Duration timeout = DEFAULT_TIMEOUT;
         private int maxRetries = DEFAULT_MAX_RETRIES;
         private HttpClient httpClient;
+        private boolean debug = false;
+        private Logger logger;
 
         private Builder(String apiKey) {
             this.apiKey = apiKey;
@@ -604,12 +640,57 @@ public class RenamedClient {
         }
 
         /**
+         * Enables or disables debug logging.
+         *
+         * <p>When enabled, the SDK logs HTTP requests, responses, retries,
+         * file uploads, and async job polling. API keys are masked in logs.</p>
+         *
+         * <p>Example:</p>
+         * <pre>{@code
+         * RenamedClient client = RenamedClient.builder("rt_your_api_key")
+         *     .debug(true)
+         *     .build();
+         * }</pre>
+         *
+         * @param debug true to enable debug logging
+         * @return this builder
+         */
+        public Builder debug(boolean debug) {
+            this.debug = debug;
+            return this;
+        }
+
+        /**
+         * Sets a custom logger for debug output.
+         *
+         * <p>If not set and debug is enabled, logs are written to System.out.
+         * The logger can integrate with any logging framework.</p>
+         *
+         * <p>Example with SLF4J:</p>
+         * <pre>{@code
+         * import org.slf4j.LoggerFactory;
+         *
+         * RenamedClient client = RenamedClient.builder("rt_your_api_key")
+         *     .debug(true)
+         *     .logger(LoggerFactory.getLogger(RenamedClient.class)::info)
+         *     .build();
+         * }</pre>
+         *
+         * @param logger the logger to use for debug output
+         * @return this builder
+         */
+        public Builder logger(Logger logger) {
+            this.logger = logger;
+            return this;
+        }
+
+        /**
          * Builds the RenamedClient with the configured settings.
          *
          * @return the configured client
          */
         public RenamedClient build() {
-            return new RenamedClient(apiKey, baseUrl, timeout, maxRetries, httpClient);
+            return new RenamedClient(apiKey, baseUrl, timeout, maxRetries, httpClient, debug, logger);
         }
     }
 }

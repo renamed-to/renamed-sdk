@@ -168,6 +168,17 @@ impl JobStatus {
     }
 }
 
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JobStatus::Pending => write!(f, "pending"),
+            JobStatus::Processing => write!(f, "processing"),
+            JobStatus::Completed => write!(f, "completed"),
+            JobStatus::Failed => write!(f, "failed"),
+        }
+    }
+}
+
 /// Response from the job status endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

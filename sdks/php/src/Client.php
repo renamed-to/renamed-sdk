@@ -9,6 +9,8 @@ use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Utils;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Renamed\Exceptions\AuthenticationException;
 use Renamed\Exceptions\NetworkException;
 use Renamed\Exceptions\RenamedExceptionBase;
@@ -27,6 +29,13 @@ use Renamed\Models\User;
  * $client = new Client('rt_your_api_key');
  * $result = $client->rename('/path/to/invoice.pdf');
  * echo $result->suggestedFilename; // "2025-01-15_AcmeCorp_INV-12345.pdf"
+ *
+ * // With debug logging
+ * $client = new Client('rt_your_api_key', debug: true);
+ * // Logs to stderr: [Renamed] POST /rename -> 200 (234ms)
+ *
+ * // With custom PSR-3 logger
+ * $client = new Client('rt_your_api_key', debug: true, logger: $monolog);
  * ```
  */
 final class Client
@@ -34,6 +43,7 @@ final class Client
     private const DEFAULT_BASE_URL = 'https://www.renamed.to/api/v1';
     private const DEFAULT_TIMEOUT = 30.0;
     private const DEFAULT_MAX_RETRIES = 2;
+    private const LOG_PREFIX = '[Renamed]';
 
     private const MIME_TYPES = [
         'pdf' => 'application/pdf',
@@ -44,10 +54,10 @@ final class Client
         'tif' => 'image/tiff',
     ];
 
-    private string $apiKey;
     private string $baseUrl;
-    private float $timeout;
     private int $maxRetries;
+    private bool $debug;
+    private LoggerInterface $logger;
     private GuzzleClient $httpClient;
 
     /**
@@ -57,21 +67,25 @@ final class Client
      * @param string $baseUrl Base URL for the API
      * @param float $timeout Request timeout in seconds
      * @param int $maxRetries Maximum number of retries for failed requests
+     * @param bool $debug Enable debug logging
+     * @param LoggerInterface|null $logger PSR-3 logger instance (uses stderr when debug=true and no logger provided)
      */
     public function __construct(
         string $apiKey,
         string $baseUrl = self::DEFAULT_BASE_URL,
         float $timeout = self::DEFAULT_TIMEOUT,
         int $maxRetries = self::DEFAULT_MAX_RETRIES,
+        bool $debug = false,
+        ?LoggerInterface $logger = null,
     ) {
         if (empty($apiKey)) {
             throw new AuthenticationException('API key is required');
         }
 
-        $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
-        $this->timeout = $timeout;
         $this->maxRetries = $maxRetries;
+        $this->debug = $debug;
+        $this->logger = $logger ?? ($debug ? new StderrLogger() : new NullLogger());
 
         $this->httpClient = new GuzzleClient([
             'timeout' => $timeout,
@@ -79,6 +93,13 @@ final class Client
                 'Authorization' => "Bearer {$apiKey}",
             ],
         ]);
+
+        if ($this->debug) {
+            $this->log('debug', 'Client initialized', [
+                'api_key' => $this->maskApiKey($apiKey),
+                'base_url' => $this->baseUrl,
+            ]);
+        }
     }
 
     /**
@@ -159,7 +180,7 @@ final class Client
 
         $response = $this->uploadFile('/pdf-split', $file, $additionalFields);
 
-        return new AsyncJob($this, $response['statusUrl']);
+        return new AsyncJob($this, $response['statusUrl'], logger: $this->debug ? $this->logger : null);
     }
 
     /**
@@ -222,9 +243,24 @@ final class Client
      */
     public function downloadFile(string $url): string
     {
+        $startTime = microtime(true);
+
         try {
             $response = $this->httpClient->get($url);
-            return (string) $response->getBody();
+            $content = (string) $response->getBody();
+
+            if ($this->debug) {
+                $durationMs = $this->calculateDurationMs($startTime);
+                $path = parse_url($url, PHP_URL_PATH) ?? $url;
+                $this->log('debug', sprintf(
+                    'GET %s -> %d (%dms)',
+                    $path,
+                    $response->getStatusCode(),
+                    $durationMs
+                ));
+            }
+
+            return $content;
         } catch (ConnectException $e) {
             throw new NetworkException($e->getMessage());
         } catch (RequestException $e) {
@@ -252,13 +288,29 @@ final class Client
     public function request(string $method, string $path, array $options = []): array
     {
         $url = $this->buildUrl($path);
+        $logPath = $this->extractPathForLogging($path);
         $lastException = null;
         $attempts = 0;
 
         while ($attempts <= $this->maxRetries) {
+            $startTime = microtime(true);
+
             try {
                 $response = $this->httpClient->request($method, $url, $options);
-                return $this->handleResponse($response);
+                $result = $this->handleResponse($response);
+
+                if ($this->debug) {
+                    $durationMs = $this->calculateDurationMs($startTime);
+                    $this->log('debug', sprintf(
+                        '%s %s -> %d (%dms)',
+                        $method,
+                        $logPath,
+                        $response->getStatusCode(),
+                        $durationMs
+                    ));
+                }
+
+                return $result;
             } catch (ConnectException $e) {
                 $lastException = new NetworkException($e->getMessage());
             } catch (RequestException $e) {
@@ -268,6 +320,17 @@ final class Client
 
                     // Don't retry client errors (4xx)
                     if ($statusCode >= 400 && $statusCode < 500) {
+                        if ($this->debug) {
+                            $durationMs = $this->calculateDurationMs($startTime);
+                            $this->log('debug', sprintf(
+                                '%s %s -> %d (%dms)',
+                                $method,
+                                $logPath,
+                                $statusCode,
+                                $durationMs
+                            ));
+                        }
+
                         $payload = $this->decodeResponse($response);
                         throw RenamedExceptionBase::fromHttpStatus(
                             $statusCode,
@@ -294,11 +357,40 @@ final class Client
 
             $attempts++;
             if ($attempts <= $this->maxRetries) {
-                usleep((int) (pow(2, $attempts) * 100_000)); // Exponential backoff
+                $backoffMs = (int) (pow(2, $attempts) * 100);
+
+                if ($this->debug) {
+                    $this->log('debug', sprintf(
+                        'Retry attempt %d/%d, waiting %dms',
+                        $attempts,
+                        $this->maxRetries,
+                        $backoffMs
+                    ));
+                }
+
+                usleep($backoffMs * 1000);
             }
         }
 
         throw $lastException ?? new NetworkException();
+    }
+
+    /**
+     * Log a job polling status update.
+     *
+     * @internal Called by AsyncJob for consistent logging.
+     */
+    public function logJobStatus(string $jobId, string $status, ?int $progress = null): void
+    {
+        if (!$this->debug) {
+            return;
+        }
+
+        $message = $progress !== null
+            ? sprintf('Job %s: %s (%d%%)', $this->truncateJobId($jobId), $status, $progress)
+            : sprintf('Job %s: %s', $this->truncateJobId($jobId), $status);
+
+        $this->log('debug', $message);
     }
 
     /**
@@ -313,6 +405,10 @@ final class Client
     private function uploadFile(string $path, mixed $file, array $additionalFields = []): array
     {
         [$filename, $content, $mimeType] = $this->prepareFile($file);
+
+        if ($this->debug) {
+            $this->logUpload($filename, strlen($content));
+        }
 
         $multipart = [
             [
@@ -394,6 +490,18 @@ final class Client
     }
 
     /**
+     * Extract path for logging (strips base URL for cleaner logs).
+     */
+    private function extractPathForLogging(string $path): string
+    {
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return parse_url($path, PHP_URL_PATH) ?? $path;
+        }
+
+        return str_starts_with($path, '/') ? $path : "/{$path}";
+    }
+
+    /**
      * Handle response and return decoded data.
      *
      * @return array<string, mixed>
@@ -427,5 +535,73 @@ final class Client
 
         $data = json_decode($body, true);
         return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Log a message with the standard prefix.
+     */
+    private function log(string $level, string $message, array $context = []): void
+    {
+        $this->logger->log($level, self::LOG_PREFIX . ' ' . $message, $context);
+    }
+
+    /**
+     * Log file upload details.
+     */
+    private function logUpload(string $filename, int $sizeBytes): void
+    {
+        $sizeFormatted = $this->formatFileSize($sizeBytes);
+        $this->log('debug', sprintf('Upload: %s (%s)', $filename, $sizeFormatted));
+    }
+
+    /**
+     * Mask API key for safe logging: rt_...xxxx (first 3 chars + last 4).
+     */
+    private function maskApiKey(string $apiKey): string
+    {
+        if (strlen($apiKey) <= 7) {
+            return '***';
+        }
+
+        $prefix = substr($apiKey, 0, 3);
+        $suffix = substr($apiKey, -4);
+
+        return "{$prefix}...{$suffix}";
+    }
+
+    /**
+     * Truncate job ID for logging (first 8 characters).
+     */
+    private function truncateJobId(string $jobId): string
+    {
+        if (strlen($jobId) <= 8) {
+            return $jobId;
+        }
+
+        return substr($jobId, 0, 8);
+    }
+
+    /**
+     * Format file size for human-readable output.
+     */
+    private function formatFileSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return "{$bytes} B";
+        }
+
+        if ($bytes < 1024 * 1024) {
+            return sprintf('%.1f KB', $bytes / 1024);
+        }
+
+        return sprintf('%.1f MB', $bytes / (1024 * 1024));
+    }
+
+    /**
+     * Calculate duration in milliseconds from start time.
+     */
+    private function calculateDurationMs(float $startTime): int
+    {
+        return (int) ((microtime(true) - $startTime) * 1000);
     }
 }

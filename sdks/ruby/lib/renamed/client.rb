@@ -3,6 +3,8 @@
 require "faraday"
 require "faraday/multipart"
 require "json"
+require "logger"
+require "uri"
 
 require_relative "errors"
 require_relative "models"
@@ -31,13 +33,16 @@ module Renamed
     # @param base_url [String] Base URL for the API
     # @param timeout [Integer] Request timeout in seconds
     # @param max_retries [Integer] Maximum number of retries for failed requests
-    def initialize(api_key:, base_url: DEFAULT_BASE_URL, timeout: DEFAULT_TIMEOUT, max_retries: DEFAULT_MAX_RETRIES)
+    # @param debug [Boolean] Enable debug logging to stderr
+    # @param logger [Logger, nil] Custom logger instance (overrides debug flag)
+    def initialize(api_key:, base_url: DEFAULT_BASE_URL, timeout: DEFAULT_TIMEOUT, max_retries: DEFAULT_MAX_RETRIES, debug: false, logger: nil)
       raise AuthenticationError, "API key is required" if api_key.nil? || api_key.empty?
 
       @api_key = api_key
       @base_url = base_url.chomp("/")
       @timeout = timeout
       @max_retries = max_retries
+      @logger = setup_logger(debug, logger)
 
       @connection = build_connection
     end
@@ -181,7 +186,9 @@ module Renamed
 
       while attempts <= @max_retries
         begin
+          start_time = monotonic_time
           response = @connection.send(method, url, options[:body], options[:headers])
+          log_request(method, path, response.status, start_time)
           return handle_response(response)
         rescue Faraday::ConnectionFailed => e
           last_error = NetworkError.new(e.message)
@@ -195,7 +202,11 @@ module Renamed
         end
 
         attempts += 1
-        sleep(2**attempts * 0.1) if attempts <= @max_retries
+        if attempts <= @max_retries
+          backoff_ms = (2**attempts * 100).to_i
+          log_retry(attempts, @max_retries, backoff_ms)
+          sleep(backoff_ms / 1000.0)
+        end
       end
 
       raise last_error || NetworkError.new
@@ -229,6 +240,8 @@ module Renamed
     def upload_file(path, file, additional_fields: {})
       filename, content, mime_type = prepare_file(file)
 
+      log_upload(filename, content.bytesize)
+
       payload = {}
       payload[:file] = Faraday::Multipart::FilePart.new(
         StringIO.new(content),
@@ -246,7 +259,9 @@ module Renamed
 
       while attempts <= @max_retries
         begin
+          start_time = monotonic_time
           response = @connection.post(url, payload)
+          log_request(:post, path, response.status, start_time)
           return handle_response(response)
         rescue Faraday::ConnectionFailed => e
           last_error = NetworkError.new(e.message)
@@ -259,7 +274,11 @@ module Renamed
         end
 
         attempts += 1
-        sleep(2**attempts * 0.1) if attempts <= @max_retries
+        if attempts <= @max_retries
+          backoff_ms = (2**attempts * 100).to_i
+          log_retry(attempts, @max_retries, backoff_ms)
+          sleep(backoff_ms / 1000.0)
+        end
       end
 
       raise last_error || NetworkError.new
@@ -285,6 +304,66 @@ module Renamed
     def get_mime_type(filename)
       ext = File.extname(filename).downcase
       MIME_TYPES[ext] || "application/octet-stream"
+    end
+
+    # Logging helpers
+
+    def setup_logger(debug, logger)
+      return logger if logger
+
+      return nil unless debug
+
+      new_logger = Logger.new($stderr)
+      new_logger.level = Logger::DEBUG
+      new_logger.formatter = proc { |_severity, _datetime, _progname, msg| "#{msg}\n" }
+      new_logger
+    end
+
+    def log_debug(message)
+      @logger&.debug(message)
+    end
+
+    def log_request(method, path, status, start_time)
+      return unless @logger
+
+      elapsed_ms = ((monotonic_time - start_time) * 1000).round
+      # Normalize path to just the path portion (not full URL)
+      display_path = path.start_with?("http") ? URI.parse(path).path : path
+      log_debug("[Renamed] #{method.to_s.upcase} #{display_path} -> #{status} (#{elapsed_ms}ms)")
+    end
+
+    def log_retry(attempt, max_retries, backoff_ms)
+      log_debug("[Renamed] Retry attempt #{attempt}/#{max_retries}, waiting #{backoff_ms}ms")
+    end
+
+    def log_upload(filename, size_bytes)
+      log_debug("[Renamed] Upload: #{filename} (#{format_size(size_bytes)})")
+    end
+
+    def log_job_status(job_id, status, progress = nil)
+      message = "[Renamed] Job #{job_id}: #{status}"
+      message += " (#{progress}%)" if progress
+      log_debug(message)
+    end
+
+    def format_size(bytes)
+      if bytes >= 1_000_000
+        format("%.1f MB", bytes / 1_000_000.0)
+      elsif bytes >= 1_000
+        format("%.1f KB", bytes / 1_000.0)
+      else
+        "#{bytes} B"
+      end
+    end
+
+    def mask_api_key(key)
+      return "***" if key.nil? || key.length < 7
+
+      "#{key[0, 3]}...#{key[-4, 4]}"
+    end
+
+    def monotonic_time
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
   end
 end

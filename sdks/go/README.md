@@ -147,7 +147,34 @@ client := renamed.NewClient(
             MaxIdleConns: 10,
         },
     }),
+    // Enable debug logging
+    renamed.WithDebug(true),
+    // Custom logger (optional)
+    renamed.WithLogger(log.Default()),
 )
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```go
+client := renamed.NewClient("rt_...", renamed.WithDebug(true))
+
+// Output:
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use a custom logger by implementing the `Logger` interface:
+
+```go
+type Logger interface {
+    Printf(format string, v ...any)
+}
+
+// Use any logger with Printf method
+client := renamed.NewClient("rt_...", renamed.WithLogger(log.Default()))
 ```
 
 ## Error Handling

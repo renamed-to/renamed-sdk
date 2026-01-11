@@ -4,7 +4,9 @@
 //! asynchronous operations like PDF splitting.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+use log::debug;
 
 use crate::error::{RenamedError, Result};
 use crate::models::{JobStatus, JobStatusResponse, PdfSplitResult};
@@ -61,18 +63,36 @@ pub struct AsyncJob {
 
     /// Maximum number of poll attempts before timing out.
     max_attempts: u32,
+
+    /// Whether debug logging is enabled.
+    debug: bool,
 }
 
 impl AsyncJob {
     /// Creates a new async job.
-    pub(crate) fn new(client: Arc<reqwest::Client>, api_key: String, status_url: String) -> Self {
+    pub(crate) fn new(
+        client: Arc<reqwest::Client>,
+        api_key: String,
+        status_url: String,
+        debug: bool,
+    ) -> Self {
         Self {
             client,
             api_key,
             status_url,
             poll_interval: DEFAULT_POLL_INTERVAL,
             max_attempts: MAX_POLL_ATTEMPTS,
+            debug,
         }
+    }
+
+    /// Extracts the job ID from the status URL.
+    fn extract_job_id(&self) -> &str {
+        // Extract job ID from URL like "https://example.com/status/abc123"
+        self.status_url
+            .rsplit('/')
+            .next()
+            .unwrap_or("unknown")
     }
 
     /// Sets a custom polling interval.
@@ -102,6 +122,8 @@ impl AsyncJob {
     ///
     /// Returns an error if the network request fails or the response cannot be parsed.
     pub async fn status(&self) -> Result<JobStatusResponse> {
+        let start = Instant::now();
+
         let response = self
             .client
             .get(&self.status_url)
@@ -111,13 +133,31 @@ impl AsyncJob {
             .map_err(RenamedError::from_reqwest)?;
 
         let status_code = response.status().as_u16();
+        let elapsed_ms = start.elapsed().as_millis();
         let body = response.text().await.map_err(RenamedError::from_reqwest)?;
 
         if status_code >= 400 {
             return Err(RenamedError::from_http_status(status_code, Some(&body)));
         }
 
-        serde_json::from_str(&body).map_err(RenamedError::from_serde)
+        let status_response: JobStatusResponse =
+            serde_json::from_str(&body).map_err(RenamedError::from_serde)?;
+
+        if self.debug {
+            let progress_str = status_response
+                .progress
+                .map(|p| format!(" ({}%)", p))
+                .unwrap_or_default();
+            debug!(
+                "[Renamed] Job {}: {}{} ({}ms)",
+                self.extract_job_id(),
+                status_response.status,
+                progress_str,
+                elapsed_ms
+            );
+        }
+
+        Ok(status_response)
     }
 
     /// Waits for the job to complete, polling at regular intervals.
@@ -220,6 +260,7 @@ mod tests {
             client,
             "test_key".to_string(),
             "https://example.com/status".to_string(),
+            false,
         )
         .with_poll_interval(Duration::from_secs(5))
         .with_max_attempts(10);
@@ -227,5 +268,18 @@ mod tests {
         assert_eq!(job.poll_interval, Duration::from_secs(5));
         assert_eq!(job.max_attempts, 10);
         assert_eq!(job.status_url(), "https://example.com/status");
+    }
+
+    #[test]
+    fn test_extract_job_id() {
+        let client = Arc::new(reqwest::Client::new());
+        let job = AsyncJob::new(
+            client,
+            "test_key".to_string(),
+            "https://example.com/status/abc123".to_string(),
+            false,
+        );
+
+        assert_eq!(job.extract_job_id(), "abc123");
     }
 }

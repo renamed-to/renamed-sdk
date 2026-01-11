@@ -49,7 +49,8 @@ using var client = new RenamedClient(new RenamedClientOptions
     ApiKey = "rt_your_api_key",
     BaseUrl = "https://www.renamed.to/api/v1",
     Timeout = TimeSpan.FromSeconds(60),
-    MaxRetries = 3
+    MaxRetries = 3,
+    Debug = true  // Enable debug logging
 });
 
 // With a custom HttpClient (for dependency injection)
@@ -175,6 +176,50 @@ var result = await client.ExtractAsync("receipt.jpg", new ExtractOptions
         ["total"] = new { type = "number" },
         ["items"] = new { type = "array" }
     }
+});
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```csharp
+using var client = new RenamedClient(new RenamedClientOptions
+{
+    ApiKey = "rt_...",
+    Debug = true
+});
+
+// Output:
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use a custom logger by implementing `IRenamedLogger`:
+
+```csharp
+using Renamed.Sdk.Logging;
+
+// Implement your own logger
+public class MyLogger : IRenamedLogger
+{
+    public void Log(LogLevel level, string message) => Console.WriteLine($"[{level}] {message}");
+}
+
+var client = new RenamedClient(new RenamedClientOptions
+{
+    ApiKey = "rt_...",
+    Logger = new MyLogger()
+});
+
+// Or use the Microsoft.Extensions.Logging adapter
+using Microsoft.Extensions.Logging;
+
+ILogger<RenamedClient> msLogger = loggerFactory.CreateLogger<RenamedClient>();
+var client = new RenamedClient(new RenamedClientOptions
+{
+    ApiKey = "rt_...",
+    Logger = new MicrosoftLoggerAdapter(msLogger)
 });
 ```
 

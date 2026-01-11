@@ -147,7 +147,38 @@ client = RenamedClient(
 
     # Optional: Max retries for failed requests (default: 2)
     max_retries=2,
+
+    # Optional: Enable debug logging (default: False)
+    debug=True,
+
+    # Optional: Custom logger (default: stderr logger when debug=True)
+    logger=my_logger,
 )
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```python
+client = RenamedClient(api_key="rt_...", debug=True)
+
+# Output:
+# [Renamed] POST /rename -> 200 (234ms)
+# [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use Python's standard logging module for custom logging:
+
+```python
+import logging
+
+# Configure logging level
+logging.basicConfig(level=logging.DEBUG)
+
+# Or use a custom logger
+logger = logging.getLogger("my_app")
+client = RenamedClient(api_key="rt_...", logger=logger)
 ```
 
 ## Error Handling

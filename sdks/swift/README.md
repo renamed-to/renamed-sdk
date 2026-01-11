@@ -158,10 +158,39 @@ let options = RenamedClientOptions(
     apiKey: "rt_your_api_key",
     baseUrl: "https://www.renamed.to/api/v1",  // Optional: custom base URL
     timeout: 30,                                 // Optional: request timeout in seconds
-    maxRetries: 2                                // Optional: retry count for failed requests
+    maxRetries: 2,                               // Optional: retry count for failed requests
+    debug: true                                  // Optional: enable debug logging
 )
 
 let client = try RenamedClient(options: options)
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```swift
+let client = try RenamedClient(
+    options: RenamedClientOptions(apiKey: "rt_...", debug: true)
+)
+
+// Output:
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use a custom logger by implementing `RenamedLogger`:
+
+```swift
+class MyLogger: RenamedLogger {
+    func log(level: RenamedLogLevel, message: String) {
+        print("[\(level)] \(message)")
+    }
+}
+
+let client = try RenamedClient(
+    options: RenamedClientOptions(apiKey: "rt_...", logger: MyLogger())
+)
 ```
 
 ## File Input

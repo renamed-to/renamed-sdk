@@ -64,6 +64,7 @@ htmlcov/
 # Package lock files (keep npm but ignore others)
 pnpm-lock.yaml
 yarn.lock
+uv.lock
 
 # Logs
 *.log

@@ -40,6 +40,9 @@ public final class AsyncJob<T: Decodable & Sendable>: @unchecked Sendable {
         while attempts < maxAttempts {
             let jobStatus = try await status()
 
+            // Log job status with progress if available
+            logJobStatus(jobStatus)
+
             onProgress?(jobStatus)
 
             switch jobStatus.status {
@@ -74,5 +77,15 @@ public final class AsyncJob<T: Decodable & Sendable>: @unchecked Sendable {
         }
 
         throw RenamedError.job(message: "Job polling timeout exceeded", jobId: nil)
+    }
+
+    // MARK: - Private Helpers
+
+    private func logJobStatus(_ status: JobStatusResponse) {
+        var message = "Job \(status.jobId): \(status.status.rawValue)"
+        if let progress = status.progress {
+            message += " (\(progress)%)"
+        }
+        client.log(message)
     }
 }

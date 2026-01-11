@@ -120,6 +120,41 @@ const client = new RenamedClient({
 
   // Optional: Max retries for failed requests (default: 2)
   maxRetries: 2,
+
+  // Optional: Enable debug logging (default: false)
+  debug: true,
+
+  // Optional: Custom logger (default: console when debug=true)
+  logger: myCustomLogger,
+});
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```typescript
+const client = new RenamedClient({
+  apiKey: "rt_...",
+  debug: true,
+});
+
+// Output:
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use a custom logger to integrate with your logging framework:
+
+```typescript
+const client = new RenamedClient({
+  apiKey: "rt_...",
+  logger: {
+    debug: (msg, ...args) => myLogger.debug(msg, ...args),
+    info: (msg, ...args) => myLogger.info(msg, ...args),
+    warn: (msg, ...args) => myLogger.warn(msg, ...args),
+    error: (msg, ...args) => myLogger.error(msg, ...args),
+  },
 });
 ```
 

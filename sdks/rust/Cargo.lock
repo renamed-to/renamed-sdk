@@ -718,6 +718,7 @@ dependencies = [
 name = "renamed"
 version = "0.1.0-beta.3"
 dependencies = [
+ "log",
  "mime_guess",
  "reqwest",
  "serde",

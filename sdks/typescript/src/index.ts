@@ -15,6 +15,7 @@ export type {
   ExtractResult,
   User,
   FileInput,
+  Logger,
 } from "./types.js";
 
 // Errors

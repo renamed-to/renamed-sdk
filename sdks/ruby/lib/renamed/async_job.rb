@@ -48,6 +48,7 @@ module Renamed
       while attempts < @max_attempts
         current_status = status
 
+        log_job_status(current_status)
         yield current_status if block_given?
 
         if current_status.status == "completed" && current_status.result
@@ -63,6 +64,12 @@ module Renamed
       end
 
       raise JobError.new("Job polling timeout exceeded")
+    end
+
+    private
+
+    def log_job_status(job_status)
+      @client.send(:log_job_status, job_status.job_id, job_status.status, job_status.progress)
     end
   end
 end

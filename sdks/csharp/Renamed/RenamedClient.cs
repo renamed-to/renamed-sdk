@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Renamed.Sdk.Exceptions;
+using Renamed.Sdk.Logging;
 using Renamed.Sdk.Models;
 
 namespace Renamed.Sdk;
@@ -19,6 +21,7 @@ public sealed class RenamedClient : IDisposable
     private readonly string _apiKey;
     private readonly string _baseUrl;
     private readonly int _maxRetries;
+    private readonly IRenamedLogger? _logger;
     private bool _disposed;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -55,6 +58,12 @@ public sealed class RenamedClient : IDisposable
         _apiKey = options.ApiKey;
         _baseUrl = options.BaseUrl.TrimEnd('/');
         _maxRetries = options.MaxRetries;
+
+        // Initialize logger based on Debug flag
+        if (options.Debug)
+        {
+            _logger = options.Logger ?? ConsoleLogger.Instance;
+        }
 
         if (options.HttpClient is not null)
         {
@@ -215,7 +224,7 @@ public sealed class RenamedClient : IDisposable
             additionalFields.Count > 0 ? additionalFields : null,
             cancellationToken).ConfigureAwait(false);
 
-        return new AsyncJob<PdfSplitResult>(this, response.StatusUrl);
+        return new AsyncJob<PdfSplitResult>(this, response.StatusUrl, _logger);
     }
 
     /// <summary>
@@ -350,10 +359,16 @@ public sealed class RenamedClient : IDisposable
     /// </example>
     public async Task<byte[]> DownloadFileAsync(string url, CancellationToken cancellationToken = default)
     {
+        var stopwatch = Stopwatch.StartNew();
+
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        stopwatch.Stop();
+
+        var path = GetPathFromUrl(url);
+        LogRequest(HttpMethod.Get, path, (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -379,6 +394,8 @@ public sealed class RenamedClient : IDisposable
 
         while (attempts <= _maxRetries)
         {
+            var stopwatch = Stopwatch.StartNew();
+
             try
             {
                 using var request = new HttpRequestMessage(method, url);
@@ -391,6 +408,11 @@ public sealed class RenamedClient : IDisposable
                 }
 
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                stopwatch.Stop();
+
+                var requestPath = GetPathFromUrl(path);
+                LogRequest(method, requestPath, (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
+
                 var responseText = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
@@ -425,8 +447,9 @@ public sealed class RenamedClient : IDisposable
 
                 if (attempts <= _maxRetries)
                 {
-                    var delay = TimeSpan.FromMilliseconds(Math.Pow(2, attempts) * 100);
-                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    var delayMs = (int)(Math.Pow(2, attempts) * 100);
+                    LogRetry(attempts, _maxRetries, delayMs);
+                    await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -442,6 +465,11 @@ public sealed class RenamedClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         var url = BuildUrl(path);
+        var stopwatch = Stopwatch.StartNew();
+
+        // Get file size for logging
+        var fileSize = GetStreamLength(fileStream);
+        LogUpload(fileName, fileSize);
 
         using var content = new MultipartFormDataContent();
         using var streamContent = new StreamContent(fileStream);
@@ -464,6 +492,10 @@ public sealed class RenamedClient : IDisposable
         try
         {
             using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            stopwatch.Stop();
+
+            LogRequest(HttpMethod.Post, path, (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
+
             var responseText = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
@@ -540,6 +572,102 @@ public sealed class RenamedClient : IDisposable
             HttpStatusCode.TooManyRequests => new RateLimitException(message),
             _ => new RenamedExceptionBase(message, "API_ERROR", (int)statusCode)
         };
+    }
+
+    /// <summary>
+    /// Logs a debug message if logging is enabled.
+    /// Internal for use by AsyncJob.
+    /// </summary>
+    internal void LogDebug(string message)
+    {
+        _logger?.Log(message);
+    }
+
+    private void LogRequest(HttpMethod method, string path, int statusCode, long elapsedMs)
+    {
+        _logger?.Log($"[Renamed] {method.Method} {path} -> {statusCode} ({elapsedMs}ms)");
+    }
+
+    private void LogRetry(int attempt, int maxRetries, int delayMs)
+    {
+        _logger?.Log($"[Renamed] Retry attempt {attempt}/{maxRetries}, waiting {delayMs}ms");
+    }
+
+    private void LogUpload(string fileName, long? fileSize)
+    {
+        if (_logger is null)
+        {
+            return;
+        }
+
+        var sizeStr = fileSize.HasValue ? FormatFileSize(fileSize.Value) : "unknown size";
+        _logger.Log($"[Renamed] Upload: {fileName} ({sizeStr})");
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        return bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+            < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024.0):F1} MB",
+            _ => $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB"
+        };
+    }
+
+    private static long? GetStreamLength(Stream stream)
+    {
+        try
+        {
+            if (stream.CanSeek)
+            {
+                return stream.Length;
+            }
+        }
+        catch
+        {
+            // Some streams may throw even when CanSeek is true
+        }
+
+        return null;
+    }
+
+    private static string GetPathFromUrl(string urlOrPath)
+    {
+        // If it's already a path (starts with /), return as-is
+        if (urlOrPath.StartsWith('/'))
+        {
+            return urlOrPath;
+        }
+
+        // Try to parse as URL and extract path
+        if (Uri.TryCreate(urlOrPath, UriKind.Absolute, out var uri))
+        {
+            return uri.AbsolutePath;
+        }
+
+        return urlOrPath;
+    }
+
+    /// <summary>
+    /// Masks the API key for safe logging (rt_...xxxx format).
+    /// </summary>
+    internal static string MaskApiKey(string apiKey)
+    {
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return "***";
+        }
+
+        // Show first 3 chars and last 4 chars: rt_...xxxx
+        if (apiKey.Length <= 7)
+        {
+            return "***";
+        }
+
+        var prefix = apiKey[..3];
+        var suffix = apiKey[^4..];
+        return $"{prefix}...{suffix}";
     }
 
     /// <summary>

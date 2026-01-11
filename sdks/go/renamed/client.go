@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -14,6 +15,12 @@ import (
 	"strings"
 	"time"
 )
+
+// Logger is the interface for debug logging.
+// It is compatible with *log.Logger from the standard library.
+type Logger interface {
+	Printf(format string, v ...any)
+}
 
 const (
 	defaultBaseURL     = "https://www.renamed.to/api/v1"
@@ -54,6 +61,27 @@ func WithHTTPClient(client *http.Client) ClientOption {
 	}
 }
 
+// WithDebug enables debug logging using the standard logger.
+// When enabled, logs HTTP requests, retries, uploads, and job polling.
+func WithDebug(enabled bool) ClientOption {
+	return func(c *Client) {
+		if enabled {
+			c.logger = log.Default()
+		} else {
+			c.logger = nil
+		}
+	}
+}
+
+// WithLogger sets a custom logger for debug output.
+// The logger must implement the Printf method (compatible with *log.Logger).
+// Setting a logger implicitly enables debug mode.
+func WithLogger(logger Logger) ClientOption {
+	return func(c *Client) {
+		c.logger = logger
+	}
+}
+
 // Client is the renamed.to API client.
 type Client struct {
 	apiKey     string
@@ -61,6 +89,42 @@ type Client struct {
 	timeout    time.Duration
 	maxRetries int
 	httpClient *http.Client
+	logger     Logger
+}
+
+// logf logs a message if debug logging is enabled.
+func (c *Client) logf(format string, v ...any) {
+	if c.logger != nil {
+		c.logger.Printf("[Renamed] "+format, v...)
+	}
+}
+
+// maskAPIKey returns a masked version of the API key for logging.
+// Format: first 3 chars + "..." + last 4 chars (e.g., "rt_...xxxx")
+func maskAPIKey(key string) string {
+	if len(key) <= 7 {
+		return "***"
+	}
+	return key[:3] + "..." + key[len(key)-4:]
+}
+
+// formatBytes formats bytes into a human-readable size string.
+func formatBytes(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
 }
 
 // NewClient creates a new renamed.to API client.
@@ -116,15 +180,33 @@ func (c *Client) doRequest(ctx context.Context, req *http.Request) (*http.Respon
 		resp, err := c.httpClient.Do(req.WithContext(ctx))
 		if err != nil {
 			lastErr = NewNetworkError(err.Error())
-			// Exponential backoff
+			// Exponential backoff with retry logging
 			if attempt < c.maxRetries {
-				time.Sleep(time.Duration(1<<attempt) * 100 * time.Millisecond)
+				backoff := time.Duration(1<<attempt) * 100 * time.Millisecond
+				c.logf("Retry attempt %d/%d, waiting %dms", attempt+1, c.maxRetries, backoff.Milliseconds())
+				time.Sleep(backoff)
 			}
 			continue
 		}
 		return resp, nil
 	}
 	return nil, lastErr
+}
+
+// extractPath extracts the path from a URL for logging purposes.
+func extractPath(fullURL string) string {
+	// Find the path portion after the host
+	if idx := strings.Index(fullURL, "://"); idx != -1 {
+		rest := fullURL[idx+3:]
+		if pathIdx := strings.Index(rest, "/"); pathIdx != -1 {
+			return rest[pathIdx:]
+		}
+	}
+	// If already a path or can't parse, return as-is
+	if strings.HasPrefix(fullURL, "/") {
+		return fullURL
+	}
+	return "/" + fullURL
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body io.Reader, contentType string) ([]byte, error) {
@@ -139,11 +221,15 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 		req.Header.Set("Content-Type", contentType)
 	}
 
+	start := time.Now()
 	resp, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	elapsed := time.Since(start)
+	c.logf("%s %s -> %d (%dms)", method, extractPath(url), resp.StatusCode, elapsed.Milliseconds())
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -160,6 +246,9 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 }
 
 func (c *Client) uploadFile(ctx context.Context, path string, filename string, content []byte, fields map[string]string) ([]byte, error) {
+	// Log file upload
+	c.logf("Upload: %s (%s)", filename, formatBytes(int64(len(content))))
+
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
@@ -287,6 +376,9 @@ func (j *AsyncJob) Wait(ctx context.Context, onProgress ProgressCallback) (*PdfS
 		if err != nil {
 			return nil, err
 		}
+
+		// Log job status with progress
+		j.client.logf("Job %s: %s (%d%%)", status.JobID, status.Status, status.Progress)
 
 		if onProgress != nil {
 			onProgress(status)
@@ -516,11 +608,15 @@ func (c *Client) DownloadFile(ctx context.Context, url string) ([]byte, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 
+	start := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, NewNetworkError(err.Error())
 	}
 	defer resp.Body.Close()
+
+	elapsed := time.Since(start)
+	c.logf("GET %s -> %d (%dms)", extractPath(url), resp.StatusCode, elapsed.Milliseconds())
 
 	if resp.StatusCode >= 400 {
 		return nil, ErrorFromHTTPStatus(resp.StatusCode, resp.Status, nil)

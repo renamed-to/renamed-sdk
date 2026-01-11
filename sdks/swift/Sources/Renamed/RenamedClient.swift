@@ -14,6 +14,12 @@ public struct RenamedClientOptions: Sendable {
     /// Maximum number of retries for failed requests
     public let maxRetries: Int
 
+    /// Enable debug logging (uses print() by default)
+    public let debug: Bool
+
+    /// Custom logger implementation (overrides debug flag when set)
+    public let logger: (any RenamedLogger)?
+
     /// Default base URL
     public static let defaultBaseUrl = "https://www.renamed.to/api/v1"
 
@@ -27,12 +33,16 @@ public struct RenamedClientOptions: Sendable {
         apiKey: String,
         baseUrl: String = RenamedClientOptions.defaultBaseUrl,
         timeout: TimeInterval = RenamedClientOptions.defaultTimeout,
-        maxRetries: Int = RenamedClientOptions.defaultMaxRetries
+        maxRetries: Int = RenamedClientOptions.defaultMaxRetries,
+        debug: Bool = false,
+        logger: (any RenamedLogger)? = nil
     ) {
         self.apiKey = apiKey
         self.baseUrl = baseUrl
         self.timeout = timeout
         self.maxRetries = maxRetries
+        self.debug = debug
+        self.logger = logger
     }
 }
 
@@ -43,6 +53,7 @@ public final class RenamedClient: @unchecked Sendable {
     private let timeout: TimeInterval
     private let maxRetries: Int
     private let session: URLSession
+    private let logger: (any RenamedLogger)?
 
     /// Create a new client with the given options
     public init(options: RenamedClientOptions) throws {
@@ -55,6 +66,15 @@ public final class RenamedClient: @unchecked Sendable {
         self.timeout = options.timeout
         self.maxRetries = options.maxRetries
 
+        // Set up logger: custom logger takes precedence, then debug flag
+        if let customLogger = options.logger {
+            self.logger = customLogger
+        } else if options.debug {
+            self.logger = DefaultLogger.shared
+        } else {
+            self.logger = nil
+        }
+
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout * 2
@@ -64,6 +84,13 @@ public final class RenamedClient: @unchecked Sendable {
     /// Create a new client with just an API key using default options
     public convenience init(apiKey: String) throws {
         try self.init(options: RenamedClientOptions(apiKey: apiKey))
+    }
+
+    // MARK: - Logging Helpers
+
+    /// Log a debug message if logging is enabled
+    internal func log(_ message: String) {
+        logger?.debug("\(LogHelper.prefix) \(message)")
     }
 
     // MARK: - Public API Methods
@@ -238,7 +265,10 @@ public final class RenamedClient: @unchecked Sendable {
             request.httpBody = body
         }
 
-        return try await executeWithRetry(request: request)
+        // Extract path for logging (strip base URL if present)
+        let logPath = extractPath(from: path)
+
+        return try await executeWithRetry(request: request, method: method, path: logPath)
     }
 
     /// Upload a file with multipart form data
@@ -248,6 +278,9 @@ public final class RenamedClient: @unchecked Sendable {
         fieldName: String = "file",
         additionalFields: [String: String]? = nil
     ) async throws -> T {
+        // Log file upload details
+        log("Upload: \(file.filename) (\(LogHelper.formatFileSize(file.data.count)))")
+
         let url = buildURL(path: path)
         let boundary = UUID().uuidString
 
@@ -285,7 +318,10 @@ public final class RenamedClient: @unchecked Sendable {
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
 
-        return try await executeWithRetry(request: request)
+        // Extract path for logging
+        let logPath = extractPath(from: path)
+
+        return try await executeWithRetry(request: request, method: "POST", path: logPath)
     }
 
     // MARK: - Private Helpers
@@ -299,17 +335,26 @@ public final class RenamedClient: @unchecked Sendable {
         return URL(string: "\(baseUrl)\(normalizedPath)")!
     }
 
-    private func executeWithRetry<T: Decodable>(request: URLRequest) async throws -> T {
+    private func executeWithRetry<T: Decodable>(
+        request: URLRequest,
+        method: String = "GET",
+        path: String = ""
+    ) async throws -> T {
         var lastError: Error?
         var attempts = 0
 
         while attempts <= maxRetries {
+            let startTime = CFAbsoluteTimeGetCurrent()
+
             do {
                 let (data, response) = try await session.data(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw RenamedError.network(message: "Invalid response")
                 }
+
+                // Log the request and response
+                log("\(method) \(path) -> \(httpResponse.statusCode) (\(LogHelper.formatDuration(startTime)))")
 
                 if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                     let decoder = JSONDecoder()
@@ -334,8 +379,10 @@ public final class RenamedClient: @unchecked Sendable {
 
                 lastError = error
             } catch let error as URLError where error.code == .timedOut {
+                log("\(method) \(path) -> timeout (\(LogHelper.formatDuration(startTime)))")
                 throw RenamedError.timeout(message: "Request timed out")
             } catch let error as URLError {
+                log("\(method) \(path) -> network error (\(LogHelper.formatDuration(startTime)))")
                 throw RenamedError.network(message: error.localizedDescription)
             } catch let error as RenamedError {
                 throw error
@@ -345,9 +392,10 @@ public final class RenamedClient: @unchecked Sendable {
 
             attempts += 1
             if attempts <= maxRetries {
-                // Exponential backoff
-                let delay = pow(2.0, Double(attempts)) * 0.1
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                // Exponential backoff: 200ms, 400ms, 800ms, etc.
+                let delayMs = Int(pow(2.0, Double(attempts)) * 100)
+                log("Retry attempt \(attempts)/\(maxRetries), waiting \(delayMs)ms")
+                try await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
             }
         }
 
@@ -359,5 +407,19 @@ public final class RenamedClient: @unchecked Sendable {
             return nil
         }
         return json["error"] as? String ?? json["message"] as? String
+    }
+
+    /// Extract path from a URL string for logging purposes
+    /// Returns the path portion without the base URL
+    private func extractPath(from path: String) -> String {
+        if path.hasPrefix("http://") || path.hasPrefix("https://") {
+            // Full URL - extract just the path component
+            if let url = URL(string: path) {
+                return url.path
+            }
+            return path
+        }
+        // Already a path
+        return path.hasPrefix("/") ? path : "/\(path)"
     }
 }

@@ -184,8 +184,34 @@ $client = new Client(
     apiKey: 'rt_your_api_key',
     baseUrl: 'https://www.renamed.to/api/v1',  // Default API URL
     timeout: 30.0,                               // Request timeout in seconds
-    maxRetries: 2                                // Max retries for failed requests
+    maxRetries: 2,                               // Max retries for failed requests
+    debug: true,                                 // Enable debug logging
+    logger: $myLogger                            // PSR-3 logger (optional)
 );
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```php
+$client = new Client(apiKey: 'rt_...', debug: true);
+
+// Output:
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use a PSR-3 compatible logger (e.g., Monolog):
+
+```php
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+
+$logger = new Logger('renamed');
+$logger->pushHandler(new StreamHandler('php://stderr', Logger::DEBUG));
+
+$client = new Client(apiKey: 'rt_...', logger: $logger);
 ```
 
 ## Models

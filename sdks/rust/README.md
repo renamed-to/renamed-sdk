@@ -156,7 +156,36 @@ let client = RenamedClient::builder("rt_your_api_key")
     .base_url("https://custom.api.com")
     .timeout(Duration::from_secs(60))
     .max_retries(3)
+    .with_debug(true)  // Enable debug logging
     .build();
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```rust
+let client = RenamedClient::builder("rt_your_api_key")
+    .with_debug(true)
+    .build();
+
+// Output (via log crate):
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+The SDK uses the [`log`](https://crates.io/crates/log) crate. Add a logging implementation like `env_logger` to see output:
+
+```toml
+[dependencies]
+env_logger = "0.10"
+```
+
+```rust
+fn main() {
+    env_logger::init();  // Initialize logger
+    // RUST_LOG=renamed=debug cargo run
+}
 ```
 
 ## Working with Bytes

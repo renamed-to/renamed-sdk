@@ -1,11 +1,14 @@
 package renamed
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -327,4 +330,204 @@ func (r *mockReader) Read(p []byte) (n int, err error) {
 	n = copy(p, r.data[r.pos:])
 	r.pos += n
 	return n, nil
+}
+
+// testLogger captures log output for testing
+type testLogger struct {
+	buf bytes.Buffer
+}
+
+func (l *testLogger) Printf(format string, v ...any) {
+	l.buf.WriteString(fmt.Sprintf(format, v...))
+	l.buf.WriteString("\n")
+}
+
+func (l *testLogger) output() string {
+	return l.buf.String()
+}
+
+func (l *testLogger) contains(s string) bool {
+	return strings.Contains(l.buf.String(), s)
+}
+
+func TestMaskAPIKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"standard key", "rt_abc123xyz456", "rt_...z456"},
+		{"short key", "abc", "***"},
+		{"exactly 7 chars", "1234567", "***"},
+		{"8 chars", "12345678", "123...5678"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := maskAPIKey(tt.input)
+			if result != tt.expected {
+				t.Errorf("maskAPIKey(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    int64
+		expected string
+	}{
+		{"bytes", 500, "500 B"},
+		{"kilobytes", 1536, "1.5 KB"},
+		{"megabytes", 1572864, "1.5 MB"},
+		{"gigabytes", 1610612736, "1.5 GB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatBytes(tt.input)
+			if result != tt.expected {
+				t.Errorf("formatBytes(%d) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"full URL", "https://api.example.com/v1/rename", "/v1/rename"},
+		{"path only", "/v1/rename", "/v1/rename"},
+		{"relative path", "v1/rename", "/v1/rename"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractPath(tt.input)
+			if result != tt.expected {
+				t.Errorf("extractPath(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWithDebug(t *testing.T) {
+	t.Run("enables debug logging", func(t *testing.T) {
+		client := NewClient("rt_test123", WithDebug(true))
+		if client.logger == nil {
+			t.Error("expected logger to be set")
+		}
+	})
+
+	t.Run("disables debug logging", func(t *testing.T) {
+		client := NewClient("rt_test123", WithDebug(false))
+		if client.logger != nil {
+			t.Error("expected logger to be nil")
+		}
+	})
+}
+
+func TestWithLogger(t *testing.T) {
+	t.Run("sets custom logger", func(t *testing.T) {
+		logger := &testLogger{}
+		client := NewClient("rt_test123", WithLogger(logger))
+		if client.logger != logger {
+			t.Error("expected custom logger to be set")
+		}
+	})
+}
+
+func TestDebugLogging(t *testing.T) {
+	t.Run("logs HTTP requests", func(t *testing.T) {
+		logger := &testLogger{}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(User{ID: "user123"})
+		}))
+		defer server.Close()
+
+		client := NewClient("rt_test123", WithBaseURL(server.URL), WithLogger(logger))
+		_, _ = client.GetUser(context.Background())
+
+		if !logger.contains("[Renamed]") {
+			t.Error("expected log to contain [Renamed] prefix")
+		}
+		if !logger.contains("GET") {
+			t.Error("expected log to contain HTTP method")
+		}
+		if !logger.contains("/user") {
+			t.Error("expected log to contain path")
+		}
+	})
+
+	t.Run("logs file uploads", func(t *testing.T) {
+		logger := &testLogger{}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(RenameResult{SuggestedFilename: "test.pdf"})
+		}))
+		defer server.Close()
+
+		client := NewClient("rt_test123", WithBaseURL(server.URL), WithLogger(logger))
+		_, _ = client.RenameReader(
+			context.Background(),
+			&mockReader{data: []byte("fake pdf content")},
+			"document.pdf",
+			nil,
+		)
+
+		if !logger.contains("Upload:") {
+			t.Error("expected log to contain 'Upload:'")
+		}
+		if !logger.contains("document.pdf") {
+			t.Error("expected log to contain filename")
+		}
+	})
+
+	t.Run("logs job polling", func(t *testing.T) {
+		logger := &testLogger{}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(JobStatusResponse{
+				JobID:    "job123",
+				Status:   JobStatusCompleted,
+				Progress: 100,
+				Result:   &PdfSplitResult{},
+			})
+		}))
+		defer server.Close()
+
+		client := NewClient("rt_test123", WithBaseURL(server.URL), WithLogger(logger))
+		job := &AsyncJob{
+			client:       client,
+			statusURL:    server.URL + "/status/job123",
+			pollInterval: 1,
+			maxAttempts:  10,
+		}
+
+		_, _ = job.Wait(context.Background(), nil)
+
+		if !logger.contains("Job") {
+			t.Error("expected log to contain 'Job'")
+		}
+		if !logger.contains("job123") {
+			t.Error("expected log to contain job ID")
+		}
+	})
+
+	t.Run("does not log when logger is nil", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(User{ID: "user123"})
+		}))
+		defer server.Close()
+
+		// No logger set - should not panic
+		client := NewClient("rt_test123", WithBaseURL(server.URL))
+		_, err := client.GetUser(context.Background())
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
 }

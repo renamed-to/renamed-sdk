@@ -135,8 +135,33 @@ client = Renamed::Client.new(
   api_key: 'rt_your_api_key',
   base_url: 'https://www.renamed.to/api/v1',  # Default
   timeout: 30,                                  # Request timeout in seconds
-  max_retries: 2                                # Number of retries for failed requests
+  max_retries: 2,                               # Number of retries for failed requests
+  debug: true,                                  # Enable debug logging
+  logger: Logger.new($stderr)                   # Custom logger (optional)
 )
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```ruby
+client = Renamed::Client.new(api_key: 'rt_...', debug: true)
+
+# Output:
+# [Renamed] POST /rename -> 200 (234ms)
+# [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use Ruby's standard `Logger` for custom logging:
+
+```ruby
+require 'logger'
+
+logger = Logger.new('renamed.log')
+logger.level = Logger::DEBUG
+
+client = Renamed::Client.new(api_key: 'rt_...', logger: logger)
 ```
 
 ## Error Handling

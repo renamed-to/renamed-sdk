@@ -41,6 +41,7 @@ public class AsyncJob {
     private final String statusUrl;
     private final Duration pollInterval;
     private final int maxAttempts;
+    private final Logger logger;
 
     /**
      * Creates a new AsyncJob.
@@ -51,7 +52,20 @@ public class AsyncJob {
      * @param statusUrl the URL to poll for job status
      */
     AsyncJob(HttpClient httpClient, ObjectMapper objectMapper, String apiKey, String statusUrl) {
-        this(httpClient, objectMapper, apiKey, statusUrl, DEFAULT_POLL_INTERVAL, DEFAULT_MAX_ATTEMPTS);
+        this(httpClient, objectMapper, apiKey, statusUrl, null);
+    }
+
+    /**
+     * Creates a new AsyncJob with optional logger.
+     *
+     * @param httpClient the HTTP client to use
+     * @param objectMapper the JSON object mapper
+     * @param apiKey the API key for authentication
+     * @param statusUrl the URL to poll for job status
+     * @param logger optional logger for debug output
+     */
+    AsyncJob(HttpClient httpClient, ObjectMapper objectMapper, String apiKey, String statusUrl, Logger logger) {
+        this(httpClient, objectMapper, apiKey, statusUrl, DEFAULT_POLL_INTERVAL, DEFAULT_MAX_ATTEMPTS, logger);
     }
 
     /**
@@ -63,15 +77,17 @@ public class AsyncJob {
      * @param statusUrl the URL to poll for job status
      * @param pollInterval the interval between status checks
      * @param maxAttempts the maximum number of polling attempts
+     * @param logger optional logger for debug output
      */
     AsyncJob(HttpClient httpClient, ObjectMapper objectMapper, String apiKey, String statusUrl,
-             Duration pollInterval, int maxAttempts) {
+             Duration pollInterval, int maxAttempts, Logger logger) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.statusUrl = statusUrl;
         this.pollInterval = pollInterval;
         this.maxAttempts = maxAttempts;
+        this.logger = logger;
     }
 
     /**
@@ -97,7 +113,15 @@ public class AsyncJob {
                     .GET()
                     .build();
 
+            long startTime = System.currentTimeMillis();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            long elapsed = System.currentTimeMillis() - startTime;
+
+            // Extract path from URL for logging
+            String path = URI.create(statusUrl).getPath();
+            if (logger != null) {
+                logger.log("GET " + path + " -> " + response.statusCode() + " (" + elapsed + "ms)");
+            }
 
             if (response.statusCode() >= 400) {
                 Map<String, Object> payload = parseErrorPayload(response.body());
@@ -105,7 +129,15 @@ public class AsyncJob {
                         "HTTP " + response.statusCode(), payload);
             }
 
-            return objectMapper.readValue(response.body(), JobStatusResponse.class);
+            JobStatusResponse statusResponse = objectMapper.readValue(response.body(), JobStatusResponse.class);
+
+            if (logger != null && statusResponse.getJobId() != null) {
+                String statusText = statusResponse.getStatusValue();
+                int progress = statusResponse.getProgress();
+                logger.log("Job " + statusResponse.getJobId() + ": " + statusText + " (" + progress + "%)");
+            }
+
+            return statusResponse;
         } catch (IOException e) {
             throw new NetworkError("Failed to fetch job status: " + e.getMessage(), e);
         } catch (InterruptedException e) {

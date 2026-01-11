@@ -62,6 +62,7 @@ RenamedClient client = RenamedClient.builder("rt_your_api_key")
     .baseUrl("https://custom-api.example.com")
     .timeout(Duration.ofSeconds(60))
     .maxRetries(3)
+    .debug(true)  // Enable debug logging
     .build();
 ```
 
@@ -186,6 +187,30 @@ System.out.println("Credits: " + user.getCredits());
 if (user.getTeam() != null) {
     System.out.println("Team: " + user.getTeam().getName());
 }
+```
+
+## Debug Logging
+
+Enable debug logging to see HTTP request details for troubleshooting:
+
+```java
+RenamedClient client = RenamedClient.builder("rt_your_api_key")
+    .debug(true)
+    .build();
+
+// Output:
+// [Renamed] POST /rename -> 200 (234ms)
+// [Renamed] Upload: document.pdf (1.2 MB)
+```
+
+Use a custom logger by providing a `Logger` implementation:
+
+```java
+RenamedClient client = RenamedClient.builder("rt_your_api_key")
+    .logger((level, message) -> {
+        System.out.println("[" + level + "] " + message);
+    })
+    .build();
 ```
 
 ## Error Handling

@@ -2,11 +2,33 @@
 //!
 //! This module provides [`RenamedClient`], the primary interface for interacting
 //! with the renamed.to API.
+//!
+//! # Debug Logging
+//!
+//! Enable debug logging to see HTTP requests, retries, and job polling:
+//!
+//! ```rust,no_run
+//! use renamed::RenamedClient;
+//!
+//! let client = RenamedClient::builder("rt_your_api_key")
+//!     .with_debug(true)
+//!     .build();
+//! ```
+//!
+//! To see log output, add a logger like `env_logger` to your project:
+//!
+//! ```toml
+//! [dependencies]
+//! env_logger = "0.11"
+//! ```
+//!
+//! Then initialize it in your main function and set `RUST_LOG=renamed=debug`.
 
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use log::{debug, info, warn};
 use reqwest::multipart::{Form, Part};
 
 use crate::async_job::AsyncJob;
@@ -32,6 +54,7 @@ pub struct RenamedClientBuilder {
     base_url: String,
     timeout: Duration,
     max_retries: u32,
+    debug: bool,
 }
 
 impl RenamedClientBuilder {
@@ -42,6 +65,7 @@ impl RenamedClientBuilder {
             base_url: DEFAULT_BASE_URL.to_string(),
             timeout: DEFAULT_TIMEOUT,
             max_retries: DEFAULT_MAX_RETRIES,
+            debug: false,
         }
     }
 
@@ -69,6 +93,25 @@ impl RenamedClientBuilder {
         self
     }
 
+    /// Enables or disables debug logging.
+    ///
+    /// When enabled, the client logs HTTP requests, responses, retries, and job polling
+    /// using the `log` crate. To see output, configure a logger like `env_logger`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use renamed::RenamedClient;
+    ///
+    /// let client = RenamedClient::builder("rt_your_api_key")
+    ///     .with_debug(true)
+    ///     .build();
+    /// ```
+    pub fn with_debug(mut self, enabled: bool) -> Self {
+        self.debug = enabled;
+        self
+    }
+
     /// Builds the [`RenamedClient`].
     pub fn build(self) -> RenamedClient {
         let client = reqwest::Client::builder()
@@ -76,12 +119,23 @@ impl RenamedClientBuilder {
             .build()
             .expect("Failed to build HTTP client");
 
-        RenamedClient {
+        let renamed_client = RenamedClient {
             api_key: self.api_key,
             base_url: self.base_url,
             max_retries: self.max_retries,
+            debug: self.debug,
             client: Arc::new(client),
+        };
+
+        if self.debug {
+            info!(
+                "[Renamed] Client initialized (api_key: {}, base_url: {})",
+                renamed_client.mask_api_key(),
+                renamed_client.base_url
+            );
         }
+
+        renamed_client
     }
 }
 
@@ -110,6 +164,7 @@ pub struct RenamedClient {
     api_key: String,
     base_url: String,
     max_retries: u32,
+    debug: bool,
     client: Arc<reqwest::Client>,
 }
 
@@ -147,6 +202,54 @@ impl RenamedClient {
         format!("{}/{}", self.base_url, path)
     }
 
+    /// Masks the API key for safe logging.
+    ///
+    /// Returns format like `rt_...xxxx` (first 3 chars + last 4).
+    fn mask_api_key(&self) -> String {
+        let key = &self.api_key;
+        if key.len() <= 7 {
+            return "***".to_string();
+        }
+        let prefix = &key[..3];
+        let suffix = &key[key.len() - 4..];
+        format!("{}...{}", prefix, suffix)
+    }
+
+    /// Formats a file size in human-readable format.
+    fn format_size(bytes: usize) -> String {
+        const KB: usize = 1024;
+        const MB: usize = KB * 1024;
+        const GB: usize = MB * 1024;
+
+        if bytes >= GB {
+            format!("{:.1} GB", bytes as f64 / GB as f64)
+        } else if bytes >= MB {
+            format!("{:.1} MB", bytes as f64 / MB as f64)
+        } else if bytes >= KB {
+            format!("{:.1} KB", bytes as f64 / KB as f64)
+        } else {
+            format!("{} B", bytes)
+        }
+    }
+
+    /// Extracts the path from a URL for logging.
+    fn extract_path(url: &str) -> &str {
+        // For full URLs, extract the path portion
+        if let Some(idx) = url.find("://") {
+            let after_scheme = &url[idx + 3..];
+            if let Some(path_idx) = after_scheme.find('/') {
+                return &after_scheme[path_idx..];
+            }
+        }
+        // For relative paths, return as-is
+        url
+    }
+
+    /// Returns whether debug logging is enabled.
+    pub fn is_debug_enabled(&self) -> bool {
+        self.debug
+    }
+
     /// Makes an HTTP request with retry logic.
     async fn request(
         &self,
@@ -161,8 +264,14 @@ impl RenamedClient {
     }
 
     /// Executes a request with retry logic and returns the response body.
-    async fn execute_request(&self, request: reqwest::RequestBuilder) -> Result<String> {
+    async fn execute_request(
+        &self,
+        request: reqwest::RequestBuilder,
+        method: &str,
+        path: &str,
+    ) -> Result<String> {
         let mut last_error = None;
+        let start = Instant::now();
 
         for attempt in 0..=self.max_retries {
             let req = request.try_clone().ok_or_else(|| RenamedError::Network {
@@ -170,10 +279,30 @@ impl RenamedClient {
                 source: None,
             })?;
 
+            // Log retry attempts (not the first attempt)
+            if attempt > 0 && self.debug {
+                let delay_ms = 100 * (1 << (attempt - 1));
+                warn!(
+                    "[Renamed] Retry attempt {}/{}, waiting {}ms",
+                    attempt, self.max_retries, delay_ms
+                );
+            }
+
             match req.send().await {
                 Ok(response) => {
                     let status_code = response.status().as_u16();
+                    let elapsed_ms = start.elapsed().as_millis();
                     let body = response.text().await.map_err(RenamedError::from_reqwest)?;
+
+                    if self.debug {
+                        debug!(
+                            "[Renamed] {} {} -> {} ({}ms)",
+                            method,
+                            Self::extract_path(path),
+                            status_code,
+                            elapsed_ms
+                        );
+                    }
 
                     if status_code >= 400 {
                         return Err(RenamedError::from_http_status(status_code, Some(&body)));
@@ -199,11 +328,13 @@ impl RenamedClient {
     }
 
     /// Creates a multipart form with a file.
+    ///
+    /// Returns the form and file metadata (filename, size) for logging.
     async fn create_file_form(
         &self,
         file_path: impl AsRef<Path>,
         fields: Vec<(&str, String)>,
-    ) -> Result<Form> {
+    ) -> Result<(Form, String, usize)> {
         let path = file_path.as_ref();
         let filename = path
             .file_name()
@@ -214,13 +345,14 @@ impl RenamedClient {
         let content = tokio::fs::read(path).await.map_err(|e| {
             RenamedError::from_io(e, format!("Failed to read file: {}", path.display()))
         })?;
+        let file_size = content.len();
 
         let mime_type = mime_guess::from_path(path)
             .first_or_octet_stream()
             .to_string();
 
         let file_part = Part::bytes(content)
-            .file_name(filename)
+            .file_name(filename.clone())
             .mime_str(&mime_type)
             .map_err(|e| RenamedError::Network {
                 message: format!("Invalid MIME type: {}", e),
@@ -233,16 +365,19 @@ impl RenamedClient {
             form = form.text(key.to_string(), value);
         }
 
-        Ok(form)
+        Ok((form, filename, file_size))
     }
 
     /// Creates a multipart form from bytes.
+    ///
+    /// Returns the form and file size for logging.
     fn create_bytes_form(
         &self,
         content: Vec<u8>,
         filename: &str,
         fields: Vec<(&str, String)>,
-    ) -> Result<Form> {
+    ) -> Result<(Form, usize)> {
+        let file_size = content.len();
         let mime_type = mime_guess::from_path(filename)
             .first_or_octet_stream()
             .to_string();
@@ -261,7 +396,7 @@ impl RenamedClient {
             form = form.text(key.to_string(), value);
         }
 
-        Ok(form)
+        Ok((form, file_size))
     }
 
     /// Uploads a file and returns the response body.
@@ -271,12 +406,22 @@ impl RenamedClient {
         file_path: impl AsRef<Path>,
         fields: Vec<(&str, String)>,
     ) -> Result<String> {
-        let form = self.create_file_form(file_path, fields).await?;
+        let (form, filename, file_size) = self.create_file_form(file_path, fields).await?;
+
+        if self.debug {
+            debug!(
+                "[Renamed] Upload: {} ({})",
+                filename,
+                Self::format_size(file_size)
+            );
+        }
+
+        let url = self.build_url(path);
         let request = self
             .request(reqwest::Method::POST, path)
             .await?
             .multipart(form);
-        self.execute_request(request).await
+        self.execute_request(request, "POST", &url).await
     }
 
     /// Uploads bytes and returns the response body.
@@ -287,12 +432,22 @@ impl RenamedClient {
         filename: &str,
         fields: Vec<(&str, String)>,
     ) -> Result<String> {
-        let form = self.create_bytes_form(content, filename, fields)?;
+        let (form, file_size) = self.create_bytes_form(content, filename, fields)?;
+
+        if self.debug {
+            debug!(
+                "[Renamed] Upload: {} ({})",
+                filename,
+                Self::format_size(file_size)
+            );
+        }
+
+        let url = self.build_url(path);
         let request = self
             .request(reqwest::Method::POST, path)
             .await?
             .multipart(form);
-        self.execute_request(request).await
+        self.execute_request(request, "POST", &url).await
     }
 
     // ========================================================================
@@ -313,8 +468,10 @@ impl RenamedClient {
     /// # }
     /// ```
     pub async fn get_user(&self) -> Result<User> {
-        let request = self.request(reqwest::Method::GET, "/user").await?;
-        let body = self.execute_request(request).await?;
+        let path = "/user";
+        let url = self.build_url(path);
+        let request = self.request(reqwest::Method::GET, path).await?;
+        let body = self.execute_request(request, "GET", &url).await?;
         serde_json::from_str(&body).map_err(RenamedError::from_serde)
     }
 
@@ -449,6 +606,7 @@ impl RenamedClient {
             Arc::clone(&self.client),
             self.api_key.clone(),
             response.status_url,
+            self.debug,
         ))
     }
 
@@ -482,6 +640,7 @@ impl RenamedClient {
             Arc::clone(&self.client),
             self.api_key.clone(),
             response.status_url,
+            self.debug,
         ))
     }
 
@@ -584,6 +743,8 @@ impl RenamedClient {
     /// # }
     /// ```
     pub async fn download_file(&self, url: &str) -> Result<Vec<u8>> {
+        let start = Instant::now();
+
         let response = self
             .client
             .get(url)
@@ -593,6 +754,16 @@ impl RenamedClient {
             .map_err(RenamedError::from_reqwest)?;
 
         let status_code = response.status().as_u16();
+        let elapsed_ms = start.elapsed().as_millis();
+
+        if self.debug {
+            debug!(
+                "[Renamed] GET {} -> {} ({}ms)",
+                Self::extract_path(url),
+                status_code,
+                elapsed_ms
+            );
+        }
 
         if status_code >= 400 {
             let body = response.text().await.map_err(RenamedError::from_reqwest)?;
@@ -639,5 +810,56 @@ mod tests {
 
         assert_eq!(client.base_url, "https://custom.api.com");
         assert_eq!(client.max_retries, 5);
+        assert!(!client.debug);
+    }
+
+    #[test]
+    fn test_builder_with_debug() {
+        let client = RenamedClient::builder("test_key")
+            .with_debug(true)
+            .build();
+
+        assert!(client.debug);
+        assert!(client.is_debug_enabled());
+    }
+
+    #[test]
+    fn test_mask_api_key() {
+        // Standard API key
+        let client = RenamedClient::new("rt_1234567890abcdef");
+        assert_eq!(client.mask_api_key(), "rt_...cdef");
+
+        // Short API key (edge case)
+        let client_short = RenamedClient::new("short");
+        assert_eq!(client_short.mask_api_key(), "***");
+
+        // Exactly 8 characters
+        let client_8 = RenamedClient::new("12345678");
+        assert_eq!(client_8.mask_api_key(), "123...5678");
+    }
+
+    #[test]
+    fn test_format_size() {
+        assert_eq!(RenamedClient::format_size(0), "0 B");
+        assert_eq!(RenamedClient::format_size(512), "512 B");
+        assert_eq!(RenamedClient::format_size(1024), "1.0 KB");
+        assert_eq!(RenamedClient::format_size(1536), "1.5 KB");
+        assert_eq!(RenamedClient::format_size(1048576), "1.0 MB");
+        assert_eq!(RenamedClient::format_size(1572864), "1.5 MB");
+        assert_eq!(RenamedClient::format_size(1073741824), "1.0 GB");
+    }
+
+    #[test]
+    fn test_extract_path() {
+        assert_eq!(
+            RenamedClient::extract_path("https://api.example.com/v1/rename"),
+            "/v1/rename"
+        );
+        assert_eq!(
+            RenamedClient::extract_path("http://localhost:3000/user"),
+            "/user"
+        );
+        assert_eq!(RenamedClient::extract_path("/rename"), "/rename");
+        assert_eq!(RenamedClient::extract_path("rename"), "rename");
     }
 }

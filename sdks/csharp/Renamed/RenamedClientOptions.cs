@@ -1,3 +1,5 @@
+using Renamed.Sdk.Logging;
+
 namespace Renamed.Sdk;
 
 /// <summary>
@@ -33,4 +35,29 @@ public sealed class RenamedClientOptions
     /// If not provided, a new HttpClient will be created.
     /// </summary>
     public HttpClient? HttpClient { get; init; }
+
+    /// <summary>
+    /// Enable debug logging.
+    /// When true, logs HTTP requests, responses, retries, uploads, and job polling.
+    /// Default: false.
+    /// </summary>
+    public bool Debug { get; init; }
+
+    /// <summary>
+    /// Custom logger for debug output.
+    /// When Debug=true and Logger is null, uses Console.WriteLine.
+    /// For Microsoft.Extensions.Logging integration, use MicrosoftLoggerAdapter.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // Using custom logger
+    /// var options = new RenamedClientOptions
+    /// {
+    ///     ApiKey = "rt_xxx",
+    ///     Debug = true,
+    ///     Logger = new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("Renamed"))
+    /// };
+    /// </code>
+    /// </example>
+    public IRenamedLogger? Logger { get; init; }
 }

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import mimetypes
+import sys
 import time
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, Optional, Tuple, Union
@@ -49,6 +51,50 @@ def _get_mime_type(filename: str) -> str:
     return mime_type or "application/octet-stream"
 
 
+def _mask_api_key(api_key: str) -> str:
+    """Mask API key for logging. Shows first 3 chars + last 4 chars."""
+    if len(api_key) <= 7:
+        return "***"
+    return f"{api_key[:3]}...{api_key[-4:]}"
+
+
+def _format_file_size(size_bytes: int) -> str:
+    """Format file size in human-readable format."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+def _extract_path(url: str, base_url: str) -> str:
+    """Extract path from URL for logging (don't log full URL)."""
+    if url.startswith(base_url):
+        return url[len(base_url):]
+    if url.startswith("http://") or url.startswith("https://"):
+        # External URL - show just the path portion
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return parsed.path
+    return url
+
+
+def _create_default_logger() -> logging.Logger:
+    """Create a default logger that outputs to stderr with DEBUG level."""
+    logger = logging.getLogger("renamed")
+
+    # Only configure if no handlers exist (avoid duplicate handlers)
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter("[Renamed] %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    logger.setLevel(logging.DEBUG)
+    return logger
+
+
 class AsyncJob:
     """Async job handle for long-running operations like PDF split."""
 
@@ -58,11 +104,23 @@ class AsyncJob:
         status_url: str,
         poll_interval: float = POLL_INTERVAL,
         max_attempts: int = MAX_POLL_ATTEMPTS,
+        *,
+        job_id: Optional[str] = None,
     ) -> None:
         self._client = client
         self._status_url = status_url
+        self._job_id = job_id
         self._poll_interval = poll_interval
         self._max_attempts = max_attempts
+
+    def _log_job_status(self, status: JobStatusResponse) -> None:
+        """Log job polling status."""
+        if self._client._logger:
+            job_id = status.job_id or self._job_id or "unknown"
+            # Truncate job_id for readability
+            display_id = job_id[:8] if len(job_id) > 8 else job_id
+            progress_str = f" ({status.progress}%)" if status.progress is not None else ""
+            self._client._logger.debug(f"Job {display_id}: {status.status}{progress_str}")
 
     def status(self) -> JobStatusResponse:
         """Get current job status."""
@@ -89,6 +147,9 @@ class AsyncJob:
 
         while attempts < self._max_attempts:
             status = self.status()
+
+            # Log job status
+            self._log_job_status(status)
 
             if on_progress:
                 on_progress(status)
@@ -130,6 +191,9 @@ class AsyncJob:
         while attempts < self._max_attempts:
             status = await self.status_async()
 
+            # Log job status
+            self._log_job_status(status)
+
             if on_progress:
                 on_progress(status)
 
@@ -154,6 +218,8 @@ class RenamedClient:
         base_url: Base URL for the API (default: https://www.renamed.to/api/v1)
         timeout: Request timeout in seconds (default: 30.0)
         max_retries: Maximum number of retries for failed requests (default: 2)
+        debug: Enable debug logging to stderr (default: False)
+        logger: Custom logger instance (overrides debug parameter)
 
     Example:
         ```python
@@ -162,6 +228,9 @@ class RenamedClient:
         client = RenamedClient(api_key="rt_your_api_key")
         result = client.rename("invoice.pdf")
         print(result.suggested_filename)
+
+        # With debug logging
+        client = RenamedClient(api_key="rt_your_api_key", debug=True)
         ```
     """
 
@@ -172,6 +241,8 @@ class RenamedClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        debug: bool = False,
+        logger: Optional[logging.Logger] = None,
     ) -> None:
         if not api_key:
             raise AuthenticationError("API key is required")
@@ -181,11 +252,24 @@ class RenamedClient:
         self._timeout = timeout
         self._max_retries = max_retries
 
+        # Configure logging
+        if logger is not None:
+            self._logger: Optional[logging.Logger] = logger
+        elif debug:
+            self._logger = _create_default_logger()
+        else:
+            self._logger = None
+
         self._sync_client = httpx.Client(
             timeout=timeout,
             headers={"Authorization": f"Bearer {api_key}"},
         )
         self._async_client: Optional[httpx.AsyncClient] = None
+
+        # Log initialization
+        if self._logger:
+            masked_key = _mask_api_key(api_key)
+            self._logger.debug(f"Client initialized (api_key={masked_key})")
 
     def _get_async_client(self) -> httpx.AsyncClient:
         """Get or create async client."""
@@ -220,12 +304,22 @@ class RenamedClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         """Make a request with retries."""
         url = self._build_url(path)
+        display_path = _extract_path(url, self._base_url)
         last_error: Optional[Exception] = None
         attempts = 0
+        start_time = time.perf_counter()
 
         while attempts <= self._max_retries:
             try:
                 response = self._sync_client.request(method, url, **kwargs)
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+                # Log successful request
+                if self._logger:
+                    self._logger.debug(
+                        f"{method} {display_path} -> {response.status_code} ({elapsed_ms:.0f}ms)"
+                    )
+
                 return self._handle_response(response)
             except httpx.ConnectError as e:
                 last_error = NetworkError(str(e))
@@ -235,11 +329,21 @@ class RenamedClient:
                 last_error = e
                 # Don't retry client errors
                 if isinstance(e, RenamedError) and e.status_code and 400 <= e.status_code < 500:
+                    elapsed_ms = (time.perf_counter() - start_time) * 1000
+                    if self._logger:
+                        self._logger.debug(
+                            f"{method} {display_path} -> {e.status_code} ({elapsed_ms:.0f}ms)"
+                        )
                     raise
 
             attempts += 1
             if attempts <= self._max_retries:
-                time.sleep(2**attempts * 0.1)
+                backoff_ms = int(2**attempts * 100)
+                if self._logger:
+                    self._logger.debug(
+                        f"Retry attempt {attempts}/{self._max_retries}, waiting {backoff_ms}ms"
+                    )
+                time.sleep(backoff_ms / 1000)
 
         if last_error:
             raise last_error
@@ -248,13 +352,23 @@ class RenamedClient:
     async def _request_async(self, method: str, path: str, **kwargs: Any) -> Any:
         """Make an async request with retries."""
         url = self._build_url(path)
+        display_path = _extract_path(url, self._base_url)
         client = self._get_async_client()
         last_error: Optional[Exception] = None
         attempts = 0
+        start_time = time.perf_counter()
 
         while attempts <= self._max_retries:
             try:
                 response = await client.request(method, url, **kwargs)
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+                # Log successful request
+                if self._logger:
+                    self._logger.debug(
+                        f"{method} {display_path} -> {response.status_code} ({elapsed_ms:.0f}ms)"
+                    )
+
                 return self._handle_response(response)
             except httpx.ConnectError as e:
                 last_error = NetworkError(str(e))
@@ -263,11 +377,21 @@ class RenamedClient:
             except Exception as e:
                 last_error = e
                 if isinstance(e, RenamedError) and e.status_code and 400 <= e.status_code < 500:
+                    elapsed_ms = (time.perf_counter() - start_time) * 1000
+                    if self._logger:
+                        self._logger.debug(
+                            f"{method} {display_path} -> {e.status_code} ({elapsed_ms:.0f}ms)"
+                        )
                     raise
 
             attempts += 1
             if attempts <= self._max_retries:
-                await asyncio.sleep(2**attempts * 0.1)
+                backoff_ms = int(2**attempts * 100)
+                if self._logger:
+                    self._logger.debug(
+                        f"Retry attempt {attempts}/{self._max_retries}, waiting {backoff_ms}ms"
+                    )
+                await asyncio.sleep(backoff_ms / 1000)
 
         if last_error:
             raise last_error
@@ -301,6 +425,12 @@ class RenamedClient:
         name = Path(name).name
         return name, content, _get_mime_type(name)
 
+    def _log_upload(self, filename: str, size_bytes: int) -> None:
+        """Log file upload details."""
+        if self._logger:
+            size_str = _format_file_size(size_bytes)
+            self._logger.debug(f"Upload: {filename} ({size_str})")
+
     def _upload_file(
         self,
         path: str,
@@ -311,6 +441,9 @@ class RenamedClient:
     ) -> Any:
         """Upload a file to the API."""
         name, content, mime_type = self._prepare_file(file, filename)
+
+        # Log upload
+        self._log_upload(name, len(content))
 
         files = {field_name: (name, content, mime_type)}
         data = additional_fields or {}
@@ -327,6 +460,9 @@ class RenamedClient:
     ) -> Any:
         """Upload a file to the API (async)."""
         name, content, mime_type = self._prepare_file(file, filename)
+
+        # Log upload
+        self._log_upload(name, len(content))
 
         files = {field_name: (name, content, mime_type)}
         data = additional_fields or {}
@@ -437,7 +573,10 @@ class RenamedClient:
             additional_fields=additional_fields if additional_fields else None,
         )
 
-        return AsyncJob(self, response["statusUrl"])
+        # Extract job_id from response if available for logging
+        extracted_job_id = response.get("jobId") or response.get("job_id")
+
+        return AsyncJob(self, response["statusUrl"], job_id=extracted_job_id)
 
     async def pdf_split_async(
         self,
@@ -464,7 +603,10 @@ class RenamedClient:
             additional_fields=additional_fields if additional_fields else None,
         )
 
-        return AsyncJob(self, response["statusUrl"])
+        # Extract job_id from response if available for logging
+        extracted_job_id = response.get("jobId") or response.get("job_id")
+
+        return AsyncJob(self, response["statusUrl"], job_id=extracted_job_id)
 
     def extract(
         self,
@@ -578,7 +720,16 @@ class RenamedClient:
                 Path(doc.filename).write_bytes(content)
             ```
         """
+        start_time = time.perf_counter()
         response = self._sync_client.get(url)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        if self._logger:
+            display_path = _extract_path(url, self._base_url)
+            self._logger.debug(
+                f"GET {display_path} -> {response.status_code} ({elapsed_ms:.0f}ms)"
+            )
+
         if response.status_code >= 400:
             raise from_http_status(response.status_code, response.reason_phrase)
         return response.content
@@ -586,7 +737,16 @@ class RenamedClient:
     async def download_file_async(self, url: str) -> bytes:
         """Download a file from a URL (async version)."""
         client = self._get_async_client()
+        start_time = time.perf_counter()
         response = await client.get(url)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+        if self._logger:
+            display_path = _extract_path(url, self._base_url)
+            self._logger.debug(
+                f"GET {display_path} -> {response.status_code} ({elapsed_ms:.0f}ms)"
+            )
+
         if response.status_code >= 400:
             raise from_http_status(response.status_code, response.reason_phrase)
         return response.content

@@ -1,4 +1,14 @@
 /**
+ * Logger interface for debug logging
+ */
+export interface Logger {
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+}
+
+/**
  * Configuration options for the Renamed client
  */
 export interface RenamedClientOptions {
@@ -26,6 +36,16 @@ export interface RenamedClientOptions {
    * Custom fetch implementation (for testing or special environments)
    */
   fetch?: typeof globalThis.fetch;
+
+  /**
+   * Enable debug logging (uses console by default)
+   */
+  debug?: boolean;
+
+  /**
+   * Custom logger implementation (overrides debug flag)
+   */
+  logger?: Logger;
 }
 
 /**

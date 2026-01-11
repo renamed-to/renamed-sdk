@@ -1,4 +1,5 @@
 using Renamed.Sdk.Exceptions;
+using Renamed.Sdk.Logging;
 using Renamed.Sdk.Models;
 
 namespace Renamed.Sdk;
@@ -14,15 +15,18 @@ public sealed class AsyncJob<TResult> where TResult : class
     private readonly string _statusUrl;
     private readonly TimeSpan _pollInterval;
     private readonly int _maxAttempts;
+    private readonly IRenamedLogger? _logger;
 
     internal AsyncJob(
         RenamedClient client,
         string statusUrl,
+        IRenamedLogger? logger = null,
         TimeSpan? pollInterval = null,
         int? maxAttempts = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _statusUrl = statusUrl ?? throw new ArgumentNullException(nameof(statusUrl));
+        _logger = logger;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(2);
         _maxAttempts = maxAttempts ?? 150; // 5 minutes at 2s intervals
     }
@@ -49,12 +53,17 @@ public sealed class AsyncJob<TResult> where TResult : class
         CancellationToken cancellationToken = default)
     {
         var attempts = 0;
+        string? lastLoggedStatus = null;
+        int? lastLoggedProgress = null;
 
         while (attempts < _maxAttempts)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var status = await GetStatusAsync(cancellationToken).ConfigureAwait(false);
+
+            // Log job status changes and progress updates
+            LogJobStatus(status, ref lastLoggedStatus, ref lastLoggedProgress);
 
             onProgress?.Invoke(status);
 
@@ -81,5 +90,31 @@ public sealed class AsyncJob<TResult> where TResult : class
         }
 
         throw new JobException("Job polling timeout exceeded");
+    }
+
+    private void LogJobStatus(JobStatusResponse status, ref string? lastLoggedStatus, ref int? lastLoggedProgress)
+    {
+        if (_logger is null)
+        {
+            return;
+        }
+
+        var currentStatus = status.Status.ToString().ToLowerInvariant();
+        var currentProgress = status.Progress;
+
+        // Only log if status or progress changed
+        var statusChanged = currentStatus != lastLoggedStatus;
+        var progressChanged = currentProgress != lastLoggedProgress && currentProgress.HasValue;
+
+        if (!statusChanged && !progressChanged)
+        {
+            return;
+        }
+
+        var progressStr = currentProgress.HasValue ? $" ({currentProgress}%)" : string.Empty;
+        _logger.Log($"[Renamed] Job {status.JobId}: {currentStatus}{progressStr}");
+
+        lastLoggedStatus = currentStatus;
+        lastLoggedProgress = currentProgress;
     }
 }
