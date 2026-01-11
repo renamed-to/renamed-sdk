@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.URI;
@@ -504,10 +503,18 @@ public class RenamedClient {
 
     private String getMimeType(String filename) {
         String lower = filename.toLowerCase();
-        if (lower.endsWith(".pdf")) return "application/pdf";
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".tiff") || lower.endsWith(".tif")) return "image/tiff";
+        if (lower.endsWith(".pdf")) {
+            return "application/pdf";
+        }
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (lower.endsWith(".png")) {
+            return "image/png";
+        }
+        if (lower.endsWith(".tiff") || lower.endsWith(".tif")) {
+            return "image/tiff";
+        }
         return "application/octet-stream";
     }
 

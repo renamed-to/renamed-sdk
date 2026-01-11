@@ -1,6 +1,8 @@
 """Type definitions for renamed.to SDK."""
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -108,7 +110,7 @@ class ExtractOptions(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    schema_: dict | None = Field(default=None, alias="schema")
+    schema_: dict[str, Any] | None = Field(default=None, alias="schema")
     """Schema defining what to extract."""
 
     prompt: str | None = None
@@ -118,7 +120,7 @@ class ExtractOptions(BaseModel):
 class ExtractResult(BaseModel):
     """Result of extract operation."""
 
-    data: dict
+    data: dict[str, Any]
     """Extracted data matching the schema."""
 
     confidence: float

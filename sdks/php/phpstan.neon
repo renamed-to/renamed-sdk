@@ -1,0 +1,21 @@
+parameters:
+    level: 5
+    paths:
+        - src
+    excludePaths:
+        - vendor
+
+    # Treat PHPDoc types strictly
+    reportUnmatchedIgnoredErrors: false
+    checkMissingIterableValueType: true
+
+    # Ignore certain patterns common in SDK code
+    ignoreErrors:
+        # Properties stored for future use / debugging
+        -
+            identifier: property.onlyWritten
+        # Missing generic typehints (common in SDKs)
+        -
+            identifier: missingType.generics
+        # Isset on metadata keys that may vary
+        - '#Offset .+ on array\{.+\} in isset\(\) always exists#'

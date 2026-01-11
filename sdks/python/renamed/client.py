@@ -14,6 +14,7 @@ from renamed.exceptions import (
     AuthenticationError,
     JobError,
     NetworkError,
+    RenamedError,
     TimeoutError,
     from_http_status,
 )
@@ -233,7 +234,7 @@ class RenamedClient:
             except Exception as e:
                 last_error = e
                 # Don't retry client errors
-                if hasattr(e, "status_code") and 400 <= e.status_code < 500:  # type: ignore[attr-defined]
+                if isinstance(e, RenamedError) and e.status_code and 400 <= e.status_code < 500:
                     raise
 
             attempts += 1
@@ -261,7 +262,7 @@ class RenamedClient:
                 last_error = TimeoutError(str(e))
             except Exception as e:
                 last_error = e
-                if hasattr(e, "status_code") and 400 <= e.status_code < 500:  # type: ignore[attr-defined]
+                if isinstance(e, RenamedError) and e.status_code and 400 <= e.status_code < 500:
                     raise
 
             attempts += 1
@@ -290,9 +291,13 @@ class RenamedClient:
 
         # BinaryIO
         content = file.read()
-        name = filename or getattr(file, "name", "file")
-        if isinstance(name, bytes):
-            name = name.decode()
+        file_name: str | bytes | None = getattr(file, "name", None)
+        if file_name is None:
+            name = filename or "file"
+        elif isinstance(file_name, bytes):
+            name = filename or file_name.decode()
+        else:
+            name = filename or file_name
         name = Path(name).name
         return name, content, _get_mime_type(name)
 
@@ -467,7 +472,7 @@ class RenamedClient:
         *,
         options: ExtractOptions | None = None,
         prompt: str | None = None,
-        schema: dict | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> ExtractResult:
         """
         Extract structured data from a document.
@@ -512,7 +517,7 @@ class RenamedClient:
         *,
         options: ExtractOptions | None = None,
         prompt: str | None = None,
-        schema: dict | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> ExtractResult:
         """Extract structured data from a document (async version)."""
         additional_fields: dict[str, str] = {}

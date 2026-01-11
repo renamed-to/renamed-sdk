@@ -1,5 +1,7 @@
 """Exception classes for renamed.to SDK."""
 
+from __future__ import annotations
+
 from typing import Any
 
 
