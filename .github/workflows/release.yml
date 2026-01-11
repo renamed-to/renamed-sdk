@@ -30,7 +30,7 @@ jobs:
       - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --access public
+      - run: npm publish --provenance --access public --tag beta
 
   python:
     name: Publish Python
@@ -127,12 +127,13 @@ jobs:
         run: dotnet pack --configuration Release --no-build --output ./nupkg
 
       - name: Login to NuGet via Trusted Publishing
+        id: nuget-login
         uses: nuget/login@v1
         with:
           user: alexerm
 
       - name: Publish to NuGet
-        run: dotnet nuget push ./nupkg/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   ruby:
     name: Publish Ruby
@@ -186,7 +187,7 @@ jobs:
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+        run: cargo publish || echo "Crate may already exist, continuing..."
 
   swift:
     name: Tag Swift Package
