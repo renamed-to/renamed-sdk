@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,11 +163,16 @@ func (c *Client) uploadFile(ctx context.Context, path string, filename string, c
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
-	// Add file field
-	part, err := writer.CreateFormFile("file", filename)
+	// Create part with correct Content-Type header
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	h.Set("Content-Type", getMimeType(filename))
+
+	part, err := writer.CreatePart(h)
 	if err != nil {
 		return nil, err
 	}
+
 	if _, err := part.Write(content); err != nil {
 		return nil, err
 	}
