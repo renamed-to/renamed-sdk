@@ -1,6 +1,6 @@
 [package]
 name = "renamed"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 edition = "2021"
 authors = ["Renamed.to <support@renamed.to>"]
 description = "Official Rust SDK for the renamed.to API - AI-powered document renaming and processing"

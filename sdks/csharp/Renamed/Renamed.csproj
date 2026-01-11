@@ -8,7 +8,7 @@
 
     <!-- NuGet Package Properties -->
     <PackageId>Renamed.Sdk</PackageId>
-    <Version>0.1.0-beta.2</Version>
+    <Version>0.1.0-beta.3</Version>
     <Authors>Renamed.to</Authors>
     <Company>Renamed.to</Company>
     <Description>Official .NET SDK for the renamed.to API - AI-powered file renaming, PDF splitting, and data extraction.</Description>
