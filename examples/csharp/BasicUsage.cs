@@ -73,7 +73,7 @@ class Program
         catch (InsufficientCreditsException ex)
         {
             Console.Error.WriteLine($"Insufficient credits: {ex.Message}");
-            Console.Error.WriteLine("Please add more credits at https://renamed.to/dashboard");
+            Console.Error.WriteLine("Please add more credits at https://www.renamed.to/settings/billing");
             Environment.Exit(1);
         }
         catch (RateLimitException ex)

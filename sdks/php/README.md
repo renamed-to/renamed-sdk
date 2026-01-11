@@ -1,6 +1,6 @@
 # Renamed PHP SDK
 
-Official PHP SDK for the [renamed.to](https://renamed.to) API. Rename files, split PDFs, and extract structured data from documents using AI.
+Official PHP SDK for the [renamed.to](https://www.renamed.to) API. Rename files, split PDFs, and extract structured data from documents using AI.
 
 ## Requirements
 

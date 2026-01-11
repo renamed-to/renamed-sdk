@@ -1,6 +1,6 @@
 # Renamed.Sdk
 
-Official .NET SDK for the [renamed.to](https://renamed.to) API - AI-powered file renaming, PDF splitting, and data extraction.
+Official .NET SDK for the [renamed.to](https://www.renamed.to) API - AI-powered file renaming, PDF splitting, and data extraction.
 
 ## Installation
 
@@ -19,7 +19,7 @@ dotnet add package Renamed.Sdk
 ## Requirements
 
 - .NET 6.0 or .NET 8.0
-- A renamed.to API key (get one at [renamed.to](https://renamed.to))
+- A renamed.to API key (get one at [renamed.to](https://www.renamed.to))
 
 ## Quick Start
 

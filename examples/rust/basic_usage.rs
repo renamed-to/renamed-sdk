@@ -79,7 +79,7 @@ fn handle_error(error: RenamedError) {
         }
         RenamedError::InsufficientCredits { message, .. } => {
             eprintln!("Insufficient credits: {}", message);
-            eprintln!("Please add more credits at https://renamed.to/dashboard");
+            eprintln!("Please add more credits at https://www.renamed.to/settings/billing");
         }
         RenamedError::RateLimit { message, retry_after, .. } => {
             eprintln!("Rate limit exceeded: {}", message);

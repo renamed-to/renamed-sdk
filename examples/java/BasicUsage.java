@@ -72,7 +72,7 @@ public class BasicUsage {
 
         } catch (InsufficientCreditsError e) {
             System.err.println("Insufficient credits: " + e.getMessage());
-            System.err.println("Please add more credits at https://renamed.to/dashboard");
+            System.err.println("Please add more credits at https://www.renamed.to/settings/billing");
             System.exit(1);
 
         } catch (RateLimitError e) {

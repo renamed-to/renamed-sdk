@@ -1,6 +1,6 @@
 # Renamed Swift SDK
 
-Official Swift SDK for the [renamed.to](https://renamed.to) API - AI-powered file renaming, PDF splitting, and document extraction.
+Official Swift SDK for the [renamed.to](https://www.renamed.to) API - AI-powered file renaming, PDF splitting, and document extraction.
 
 ## Requirements
 
@@ -245,6 +245,6 @@ MIT License - see LICENSE file for details.
 
 ## Support
 
-- Documentation: [https://renamed.to/docs](https://renamed.to/docs)
-- API Reference: [https://renamed.to/api](https://renamed.to/api)
+- Documentation: [https://www.renamed.to/docs](https://www.renamed.to/docs)
+- API Reference: [https://www.renamed.to/docs/api-docs](https://www.renamed.to/docs/api-docs)
 - Issues: [https://github.com/renamed-to/renamed-sdk/issues](https://github.com/renamed-to/renamed-sdk/issues)

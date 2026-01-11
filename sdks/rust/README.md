@@ -1,6 +1,6 @@
 # renamed
 
-Official Rust SDK for the [renamed.to](https://renamed.to) API.
+Official Rust SDK for the [renamed.to](https://www.renamed.to) API.
 
 AI-powered document renaming, PDF splitting, and data extraction.
 

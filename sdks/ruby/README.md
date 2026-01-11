@@ -1,6 +1,6 @@
 # Renamed Ruby SDK
 
-Official Ruby SDK for the [renamed.to](https://renamed.to) API. Rename files intelligently using AI, split PDFs, and extract structured data from documents.
+Official Ruby SDK for the [renamed.to](https://www.renamed.to) API. Rename files intelligently using AI, split PDFs, and extract structured data from documents.
 
 ## Installation
 

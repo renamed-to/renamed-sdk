@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://www.renamed.to/docs/api-docs
+    about: Check the docs before opening an issue
+  - name: Security Vulnerability
+    url: https://github.com/renamed-to/renamed-sdk/security/advisories/new
+    about: Report security issues privately

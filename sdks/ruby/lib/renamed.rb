@@ -21,6 +21,6 @@ require_relative "renamed/client"
 #   user = client.get_user
 #   puts "Credits: #{user.credits}"
 #
-# @see https://renamed.to/docs API Documentation
+# @see https://www.renamed.to/docs API Documentation
 module Renamed
 end

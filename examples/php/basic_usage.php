@@ -71,7 +71,7 @@ try {
 
 } catch (InsufficientCreditsException $e) {
     fwrite(STDERR, "Insufficient credits: {$e->getMessage()}\n");
-    fwrite(STDERR, "Please add more credits at https://renamed.to/dashboard\n");
+    fwrite(STDERR, "Please add more credits at https://www.renamed.to/settings/billing\n");
     exit(1);
 
 } catch (RateLimitException $e) {

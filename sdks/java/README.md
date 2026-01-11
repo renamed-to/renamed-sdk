@@ -1,6 +1,6 @@
 # Renamed.to Java SDK
 
-Official Java SDK for the [renamed.to](https://renamed.to) API - AI-powered file renaming, PDF splitting, and data extraction.
+Official Java SDK for the [renamed.to](https://www.renamed.to) API - AI-powered file renaming, PDF splitting, and data extraction.
 
 ## Requirements
 
@@ -259,6 +259,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- Documentation: https://docs.renamed.to
+- Documentation: https://www.renamed.to/docs
 - Issues: https://github.com/renamed-to/renamed-sdk/issues
 - Email: support@renamed.to

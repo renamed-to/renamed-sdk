@@ -10,14 +10,14 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Official Ruby SDK for renamed.to API"
   spec.description = "Ruby client library for the renamed.to API. Rename files intelligently using AI, split PDFs, and extract structured data from documents."
-  spec.homepage = "https://renamed.to"
+  spec.homepage = "https://www.renamed.to"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/renamed-to/renamed-sdk"
   spec.metadata["changelog_uri"] = "https://github.com/renamed-to/renamed-sdk/blob/main/sdks/ruby/CHANGELOG.md"
-  spec.metadata["documentation_uri"] = "https://renamed.to/docs"
+  spec.metadata["documentation_uri"] = "https://www.renamed.to/docs"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   # Specify which files should be added to the gem

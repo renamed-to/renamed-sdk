@@ -56,7 +56,7 @@ rescue Renamed::AuthenticationError => e
 
 rescue Renamed::InsufficientCreditsError => e
   warn "Insufficient credits: #{e.message}"
-  warn "Please add more credits at https://renamed.to/dashboard"
+  warn "Please add more credits at https://www.renamed.to/settings/billing"
   exit 1
 
 rescue Renamed::RateLimitError => e

@@ -76,7 +76,7 @@ struct BasicUsage {
 
         case .insufficientCredits(let message):
             fputs("Insufficient credits: \(message)\n", stderr)
-            fputs("Please add more credits at https://renamed.to/dashboard\n", stderr)
+            fputs("Please add more credits at https://www.renamed.to/settings/billing\n", stderr)
 
         case .rateLimit(let message, let retryAfter):
             fputs("Rate limit exceeded: \(message)\n", stderr)

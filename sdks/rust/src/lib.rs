@@ -1,6 +1,6 @@
 //! # renamed
 //!
-//! Official Rust SDK for the [renamed.to](https://renamed.to) API.
+//! Official Rust SDK for the [renamed.to](https://www.renamed.to) API.
 //!
 //! This crate provides a type-safe, async client for AI-powered document
 //! renaming, PDF splitting, and data extraction.

@@ -4,7 +4,7 @@
     "type": "library",
     "license": "MIT",
     "keywords": ["renamed", "ai", "document", "rename", "pdf", "extract", "ocr", "file-processing"],
-    "homepage": "https://renamed.to",
+    "homepage": "https://www.renamed.to",
     "authors": [
         {
             "name": "Renamed.to",
@@ -14,7 +14,7 @@
     "support": {
         "issues": "https://github.com/renamed-to/renamed-sdk/issues",
         "source": "https://github.com/renamed-to/renamed-sdk",
-        "docs": "https://renamed.to/docs"
+        "docs": "https://www.renamed.to/docs"
     },
     "require": {
         "php": "^8.1",
