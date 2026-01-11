@@ -89,10 +89,7 @@ impl AsyncJob {
     /// Extracts the job ID from the status URL.
     fn extract_job_id(&self) -> &str {
         // Extract job ID from URL like "https://example.com/status/abc123"
-        self.status_url
-            .rsplit('/')
-            .next()
-            .unwrap_or("unknown")
+        self.status_url.rsplit('/').next().unwrap_or("unknown")
     }
 
     /// Sets a custom polling interval.

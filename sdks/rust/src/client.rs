@@ -815,9 +815,7 @@ mod tests {
 
     #[test]
     fn test_builder_with_debug() {
-        let client = RenamedClient::builder("test_key")
-            .with_debug(true)
-            .build();
+        let client = RenamedClient::builder("test_key").with_debug(true).build();
 
         assert!(client.debug);
         assert!(client.is_debug_enabled());
