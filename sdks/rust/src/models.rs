@@ -53,21 +53,16 @@ impl RenameOptions {
 // ============================================================================
 
 /// Mode for PDF splitting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SplitMode {
     /// Use AI to automatically detect document boundaries.
+    #[default]
     Auto,
     /// Split every N pages.
     Pages,
     /// Split at blank pages.
     Blank,
-}
-
-impl Default for SplitMode {
-    fn default() -> Self {
-        SplitMode::Auto
-    }
 }
 
 impl std::fmt::Display for SplitMode {

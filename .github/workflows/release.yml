@@ -192,6 +192,7 @@ jobs:
       - uses: swift-actions/setup-swift@v3
         with:
           swift-version: '5.10'
+          skip-verify-signature: true
 
       - name: Verify Swift package
         working-directory: sdks/swift
