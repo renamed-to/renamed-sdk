@@ -379,21 +379,21 @@ go get github.com/renamed-to/renamed-sdk/sdks/go@v1.0.0
 
 Add these secrets to your repository (Settings → Secrets and variables → Actions):
 
-| Secret Name | Registry | How to Get | Status |
-|-------------|----------|------------|--------|
-| ~~`NPM_TOKEN`~~ | npm | Not needed - uses Trusted Publishing | ✅ Configured |
-| ~~`PYPI_TOKEN`~~ | PyPI | Not needed - uses Trusted Publishing | ✅ Configured |
-| `OSSRH_USERNAME` | Maven Central | https://central.sonatype.com/account | ✅ Configured |
-| `OSSRH_TOKEN` | Maven Central | https://central.sonatype.com/account | ✅ Configured |
-| `MAVEN_GPG_PRIVATE_KEY` | Maven Central | GPG key export | ✅ Configured |
-| `MAVEN_GPG_PASSPHRASE` | Maven Central | Set to `none` | ✅ Configured |
-| `RUBYGEMS_API_KEY` | RubyGems | https://rubygems.org/settings/edit | ✅ Configured |
-| `CARGO_REGISTRY_TOKEN` | crates.io | https://crates.io/settings/tokens | ✅ Configured |
+| Secret Name | Registry | How to Get |
+|-------------|----------|------------|
+| ~~`NPM_TOKEN`~~ | npm | Not needed - uses Trusted Publishing |
+| ~~`PYPI_TOKEN`~~ | PyPI | Not needed - uses Trusted Publishing |
+| `OSSRH_USERNAME` | Maven Central | https://central.sonatype.com/account |
+| `OSSRH_TOKEN` | Maven Central | https://central.sonatype.com/account |
+| `MAVEN_GPG_PRIVATE_KEY` | Maven Central | GPG key export |
+| `MAVEN_GPG_PASSPHRASE` | Maven Central | GPG passphrase |
+| `RUBYGEMS_API_KEY` | RubyGems | https://rubygems.org/settings/edit |
+| `CARGO_REGISTRY_TOKEN` | crates.io | https://crates.io/settings/tokens |
 
 **No secret needed:**
-- **npm** - Uses Trusted Publishing (OIDC) ✅ Configured
-- **PyPI** - Uses Trusted Publishing (OIDC) ✅ Configured
-- **NuGet** - Uses Trusted Publishing (OIDC) ✅ Configured
+- **npm** - Uses Trusted Publishing (OIDC)
+- **PyPI** - Uses Trusted Publishing (OIDC)
+- **NuGet** - Uses Trusted Publishing (OIDC)
 - **Go** - Distributed via git tags
 - **Swift** - Distributed via git tags
 - **PHP/Packagist** - Auto-updates via webhook
@@ -429,7 +429,7 @@ Update the version in all SDK package files:
 # sdks/swift/Package.swift (no version field, uses git tags)
 
 # PHP
-# sdks/php/composer.json → "version": "1.0.0"
+# No version field needed - Packagist uses git tags
 ```
 
 ### Step 2: Commit Version Changes
