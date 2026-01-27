@@ -24,7 +24,7 @@ from renamed.types import (
     User,
 )
 
-__version__ = "0.1.0b3"
+__version__ = "0.1.5"
 
 __all__ = [
     # Client
