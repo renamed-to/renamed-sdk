@@ -88,12 +88,15 @@ export interface RenameOptions {
  */
 export interface PdfSplitOptions {
   /**
-   * Split mode: 'auto' (AI-detected), 'pages' (every N pages), 'blank' (at blank pages)
+   * Split mode:
+   * - 'smart' — AI-detected content boundaries
+   * - 'every-n-pages' — split every N pages (requires `pagesPerSplit`)
+   * - 'by-bookmarks' — split at PDF bookmark boundaries
    */
-  mode?: "auto" | "pages" | "blank";
+  mode?: "smart" | "every-n-pages" | "by-bookmarks";
 
   /**
-   * Number of pages per split (for 'pages' mode)
+   * Number of pages per split (for 'every-n-pages' mode)
    */
   pagesPerSplit?: number;
 }
@@ -128,9 +131,14 @@ export interface JobStatusResponse {
   error?: string;
 
   /**
-   * Result data when job is completed
+   * Result data when job is completed (SDK convention)
    */
   result?: PdfSplitResult;
+
+  /**
+   * Result data when job is completed (API v1 response format)
+   */
+  results?: PdfSplitResult;
 }
 
 /**

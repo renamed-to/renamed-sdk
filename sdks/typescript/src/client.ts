@@ -124,8 +124,12 @@ export class AsyncJob<T> {
         onProgress(status);
       }
 
-      if (status.status === "completed" && status.result) {
-        return status.result as T;
+      if (status.status === "completed") {
+        // Support both "result" (SDK convention) and "results" (API v1 response)
+        const resultData = status.result ?? status.results;
+        if (resultData) {
+          return resultData as T;
+        }
       }
 
       if (status.status === "failed") {
@@ -411,7 +415,7 @@ export class RenamedClient {
    *
    * @example
    * ```ts
-   * const job = await client.pdfSplit("multi-page.pdf", { mode: "auto" });
+   * const job = await client.pdfSplit("multi-page.pdf", { mode: "smart" });
    * const result = await job.wait((status) => {
    *   console.log(`Progress: ${status.progress}%`);
    * });
