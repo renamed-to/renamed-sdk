@@ -200,6 +200,27 @@ describe("RenamedClient", () => {
 
       expect(job).toBeInstanceOf(AsyncJob);
     });
+
+    it("passes mode value through to API request", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve('{"statusUrl": "https://api.example.com/status/job456"}'),
+      });
+
+      const client = new RenamedClient({
+        apiKey: "rt_test123",
+        fetch: mockFetch,
+      });
+
+      const buffer = Buffer.from("fake pdf content");
+      await client.pdfSplit(buffer, { mode: "smart" });
+
+      expect(mockFetch).toHaveBeenCalledOnce();
+
+      const [, requestInit] = mockFetch.mock.calls[0];
+      const body = requestInit.body as FormData;
+      expect(body.get("mode")).toBe("smart");
+    });
   });
 });
 
@@ -235,7 +256,7 @@ describe("AsyncJob", () => {
               jobId: "job123",
               status: "completed",
               progress: 100,
-              result: mockResult,
+              results: mockResult,
             })
           ),
       });
